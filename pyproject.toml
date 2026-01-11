@@ -1,0 +1,27 @@
+[project]
+name = "finmem-agent"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "annotated-types>=0.7.0",
+    "faiss-cpu>=1.13.2",
+    "guardrails-ai>=0.7.2",
+    "httpx>=0.28.1",
+    "ipykernel>=7.1.0",
+    "jupyter>=1.1.1",
+    "langchain-community>=0.4.1",
+    "numpy>=2.4.1",
+    "pandas>=2.3.3",
+    "polars>=1.36.1",
+    "python-dotenv>=1.2.1",
+    "rich>=14.2.0",
+    "scikit-learn>=1.8.0",
+    "sortedcontainers>=2.4.0",
+    "toml>=0.10.2",
+    "torch>=2.9.1",
+    "tqdm>=4.67.1",
+    "transformers>=4.57.3",
+    "typer>=0.19.2",
+]
