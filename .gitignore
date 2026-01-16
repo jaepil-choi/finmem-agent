@@ -255,3 +255,4 @@ pip-selfcheck.json
 
 data/
 .specstory/
+*.mp4
