@@ -256,3 +256,6 @@ pip-selfcheck.json
 data/
 .specstory/
 *.mp4
+*.jpeg
+*.png
+*.avif
