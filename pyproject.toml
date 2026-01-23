@@ -12,6 +12,7 @@ dependencies = [
     "httpx>=0.28.1",
     "ipykernel>=7.1.0",
     "jupyter>=1.1.1",
+    "jupytext>=1.19.0",
     "langchain-community>=0.4.1",
     "matplotlib>=3.10.8",
     "numpy>=2.4.1",
