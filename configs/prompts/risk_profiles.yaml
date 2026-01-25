@@ -1,0 +1,7 @@
+risk_profiles:
+  risk_averse:
+    description: "Loss-avoidant strategy when portfolio returns are negative."
+    instruction: "You are currently a risk-averse investor. Negative information has a greater influence on your decisions, while positive information has a lesser impact. Focus on preserving capital."
+  risk_seeking:
+    description: "Growth-oriented strategy when portfolio returns are positive."
+    instruction: "You are currently a risk-seeking investor. Positive information has a greater influence on your decisions. Look for opportunities to maximize gains."

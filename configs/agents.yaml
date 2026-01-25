@@ -1,0 +1,14 @@
+committees:
+  value:
+    factor_theme: "value"
+    num_sub_agents: 5  # Number of identical agents to measure consensus
+  
+  quality:
+    factor_theme: "quality"
+    num_sub_agents: 5
+
+  momentum:
+    factor_theme: "momentum"
+    num_sub_agents: 5
+
+  # ... add other 10 factor themes ...

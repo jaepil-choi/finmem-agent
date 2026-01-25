@@ -1,11 +1,9 @@
 # Factor-FinMem Architecture Design
 
 ## 1. Overview
-
-**Factor-FinMem** is an autonomous factor allocation system that leverages LLM-based macro analysis and self-evolving memory. This document defines the system structure, data flow, and agentic workflows using a modular and hierarchical approach.
+**Factor-FinMem** is an autonomous factor allocation system that leverages LLM-based macro analysis and self-evolving memory. This document defines the system structure, data flow, and agentic workflows using a modular and configuration-driven approach.
 
 ## 2. 3-Tier Data Architecture
-
 To ensure data integrity, search efficiency, and analytical performance, the system utilizes three distinct storage layers.
 
 | Tier | Name | Technology | Purpose |
@@ -19,30 +17,38 @@ To ensure data integrity, search efficiency, and analytical performance, the sys
 ## 3. Component Design
 
 ### 3.1. Modular RAG (Strategy Pattern)
-
 The retrieval logic is decoupled from the agents. A global RAG strategy is injected into all agents during execution to ensure consistency and facilitate comparison between different RAG methods.
-
 - **Naive RAG**: Standard similarity-based retrieval.
 - **Agentic RAG (CRAG/Self-RAG)**: LLM-based relevance grading and query rewriting.
 - **FinMem RAG**: Score-based retrieval using Recency, Importance, and Reliability.
 
-### 3.2. Hierarchical Committee Ensemble
+### 3.2. Factor Theme Committee (Ensemble for Uncertainty)
+The system manages **13 Factor Theme Committees** (e.g., Value, Quality, Momentum). Each committee consists of multiple **Identical Sub-Agents** to quantify the model's confidence.
+- **Identical Experts**: Sub-agents within a committee receive the **exact same prompt and context**.
+- **Uncertainty Quantification**: 
+    - **View Magnitude ($Q_i$)**: Mean of the individual votes (+1, 0, -1).
+    - **Uncertainty ($\Omega_i$)**: Variance of the individual votes. A high variance indicates the LLM is unsure or the context is ambiguous.
 
-The system manages **13 Factor Theme Committees** (e.g., Value, Quality, Momentum). Each committee consists of multiple **Sub-Agents (Personas)** with unique risk profiles and knowledge bases.
+### 3.3. Prompt Assembly Engine (Builder Pattern)
+System prompts are dynamically assembled from modular components to ensure consistency across the committee.
+- **Risk Profile (Dynamic)**: Selected based on portfolio performance (e.g., Risk-Averse vs. Risk-Seeking).
+- **Factor Expertise (Domain)**: Specialized domain knowledge for each of the 13 factor themes.
 
-- **Persona**: A specialized system prompt (e.g., "Contrarian Value Analyst").
-- **Consensus**: Individual votes (+1, 0, -1) are aggregated to derive $Q$ (Mean) and $\Omega$ (Variance).
-
-### 3.3. Core Engine
-
-- **Black-Litterman Optimizer**: Combines agent views with market priors from JKP data.
+### 3.4. Core Engine
+- **Black-Litterman Optimizer**: Combines committee views ($Q, \Omega$) with market priors.
 - **Backtest Engine**: Measures performance and generates ground truth for reflection.
 
 ---
 
-## 4. Agentic Workflow (LangGraph)
+## 4. Configuration Layer (Modular YAML)
+Settings are managed through modular YAML files to ensure scalability.
+- `configs/agents.yaml`: Defines the committees and the number of sub-agents per committee.
+- `configs/prompts/risk_profiles.yaml`: Defines dynamic risk behavior logic.
+- `configs/prompts/factor_expertise.yaml`: Contains detailed domain knowledge for each factor theme.
 
-The following diagram illustrates the parallel and hierarchical execution flow of the system.
+---
+
+## 5. Agentic Workflow (LangGraph)
 
 ```mermaid
 flowchart TD
@@ -54,41 +60,27 @@ flowchart TD
         
         subgraph ValueCommittee [Value Factor Committee]
             direction TB
-            subgraph ValueAgents [N Sub-Agents / Personas]
-                V_P1[Persona 1]
-                V_P2[Persona 2]
-                V_PN[Persona N...]
+            subgraph ValueAgents [N Identical Sub-Agents]
+                V1[Agent 1]
+                V2[Agent 2]
+                VN[Agent N...]
             end
             
-            Retriever1["Retriever (Global Strategy)"]
+            Retriever["Retriever (Global Strategy)"]
+            PromptBuilder["Prompt Assembly (Risk + Expertise)"]
             
-            V_P1 & V_P2 & V_PN --> Retriever1
-            Retriever1 --> Vote1["Individual Votes (+1, 0, -1)"]
-            Vote1 --> Agg1["Calculate Q_value & Omega_value"]
+            V1 & V2 & VN --> PromptBuilder
+            PromptBuilder --> Retriever
+            Retriever --> Vote["Individual Votes (+1, 0, -1)"]
+            Vote --> Agg["Calculate Q_value & Omega_value"]
         end
 
-        subgraph QualityCommittee [Quality Factor Committee]
-            direction TB
-            subgraph QualityAgents [N Sub-Agents / Personas]
-                Q_P1[Persona 1]
-                Q_P2[Persona 2]
-                Q_PN[Persona N...]
-            end
-            
-            Retriever2["Retriever (Global Strategy)"]
-            
-            Q_P1 & Q_P2 & Q_PN --> Retriever2
-            Retriever2 --> Vote2["Individual Votes (+1, 0, -1)"]
-            Vote2 --> Agg2["Calculate Q_quality & Omega_quality"]
-        end
-        
-        %% ... other 11 committees ...
+        %% ... other 12 committees ...
     end
 
     Broadcast --> ValueCommittee
-    Broadcast --> QualityCommittee
     
-    Agg1 & Agg2 --> GlobalAgg["Combine into Global Q Vector & Omega Matrix"]
+    Agg --> GlobalAgg["Combine into Global Q Vector & Omega Matrix"]
     GlobalAgg --> Optimize["Black-Litterman Optimization"]
     Optimize --> Output[Final Portfolio Weights]
     
@@ -100,17 +92,24 @@ flowchart TD
 
 ---
 
-## 5. Memory & Reflection (Train Mode Only)
-
-Reflection is a post-execution process used to improve the system's "intelligence" over time.
-
-1. **Evaluation**: Compare `agent_predictions` with actual `factor_returns` from Parquet.
-2. **Reliability Adjustment**: Increase/decrease the reliability score of memory nodes used in successful/failed predictions.
-3. **Deep Memory Generation**: Create "Extended Reflections" (Rationale analysis) and store them in the `DEEP` layer for future reference.
+## 6. Design Patterns
+- **Strategy Pattern**: Modular RAG strategies injectable into agents.
+- **Factory Pattern**: Dynamic creation of committees and agents from YAML configurations.
+- **Builder Pattern**: Dynamic assembly of system prompts from modular fragments.
+- **Repository Pattern**: Abstracted data access for MongoDB, Vector DB, and Parquet.
 
 ---
 
-## 6. Monitoring & Tracing
-
-- **LangSmith**: Used for full-trace visualization of the LangGraph DAG, debugging node outputs, and evaluating RAG performance.
-- **Visualization**: LangGraph's internal graph visualization tools will be used to verify the 13-committee fan-out structure.
+## 7. Directory Structure
+```text
+src/
+├── core/                # Pure logic (Optimization, Evaluation, Domain Models)
+├── agents/              # Agent layer
+│   ├── factory.py       # Factory for creating Committees/Agents
+│   ├── prompt_builder.py# Builder for modular prompt assembly
+│   ├── committee.py     # Committee aggregation logic (Mean/Var)
+│   └── agent.py         # Base Agent class
+├── rag/                 # Strategy pattern for retrieval
+├── db/                  # Data access layer (Repository pattern)
+└── graph/               # LangGraph orchestration
+```

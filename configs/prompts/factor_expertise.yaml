@@ -1,0 +1,17 @@
+factor_expertise:
+  value:
+    name: "Value Factor"
+    focus_metrics: ["PER", "PBR", "EV/EBITDA", "Dividend Yield"]
+    description: "Expertise in identifying undervalued stocks relative to their fundamentals."
+    instruction: "Analyze the macro environment and market reports with a focus on value metrics. Look for signs of mean reversion and margin of safety."
+  quality:
+    name: "Quality Factor"
+    focus_metrics: ["ROE", "Debt-to-Equity", "Earnings Stability"]
+    description: "Expertise in identifying high-quality companies with strong balance sheets."
+    instruction: "Analyze reports focusing on financial health, profitability, and low leverage. Prioritize companies with stable earnings power."
+  momentum:
+    name: "Momentum Factor"
+    focus_metrics: ["Price Trend", "Relative Strength Index"]
+    description: "Expertise in identifying stocks with strong upward price trends."
+    instruction: "Analyze reports for indicators of persistent trends and positive sentiment. Follow the market strength."
+# ... add other 10 factor themes as needed
