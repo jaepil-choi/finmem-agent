@@ -6,6 +6,7 @@ alwaysApply: true
 # Environment & Package Management Standards
 
 - **Shell**: Use **PowerShell** for all terminal operations. Avoid Linux-specific commands.
+- **Execution**: Always use `uv run python` to execute Python scripts. Never run `python` directly in the terminal.
 - **Package Manager**: Use **uv** exclusively for environment and package management.
   - **CRITICAL**: Never use `pip install`.
   - Always use `uv add` for managing dependencies.
