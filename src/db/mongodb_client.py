@@ -1,9 +1,14 @@
 from pymongo import MongoClient
 from datetime import datetime
 import logging
+from src.config import settings
 
 class MongoDBClient:
-    def __init__(self, host="localhost", port=27017, db_name="reports"):
+    def __init__(self, host=None, port=None, db_name=None):
+        host = host or settings.MONGODB_HOST
+        port = port or settings.MONGODB_PORT
+        db_name = db_name or settings.MONGODB_DB_NAME
+        
         self.uri = f"mongodb://{host}:{port}/"
         self.client = MongoClient(self.uri)
         self.db = self.client[db_name]

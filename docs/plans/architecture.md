@@ -9,7 +9,7 @@ To ensure data integrity, search efficiency, and analytical performance, the sys
 | Tier | Name | Technology | Purpose |
 | :--- | :--- | :--- | :--- |
 | **Tier 1** | **Raw Data Lake** | MongoDB | Permanent storage of raw PDF texts and metadata. |
-| **Tier 2** | **Memory Warehouse** | FAISS / Chroma | Hierarchical vector storage (Working, Shallow, Deep) for RAG. |
+| **Tier 2** | **Memory Warehouse** | FAISS | Hierarchical vector storage (Shallow, Intermediate, Deep) for RAG. |
 | **Tier 3** | **Structured Mart** | Parquet Files | Time-series factor returns (JKP) and agent performance logs. |
 
 ---

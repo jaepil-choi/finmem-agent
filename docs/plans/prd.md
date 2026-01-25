@@ -22,7 +22,14 @@
 
 ### **Tier 2: Memory Warehouse**
 * **목적**: 에이전트의 인지, 검색 및 지식 축적을 위한 지능형 저장소.
-* **요구사항**: 텍스트의 의미론적 유사성 검색이 가능해야 하며, FinMem의 핵심인 계층적 메모리 구조(Working, Shallow, Deep)를 지원하여 정보의 중요도와 신뢰도를 관리할 수 있어야 한다.
+* **요구사항**: 
+    - 텍스트의 의미론적 유사성 검색이 가능해야 함.
+    - **계층적 메모리 구조 (Layered Long-term Memory)** 구현:
+        1. **Shallow Layer**: 일일 시황 및 뉴스 (`daily`) - High Decay (단기 기억)
+        2. **Intermediate Layer**: 주간/월간 리포트 및 전망 (`weekly`, `monthly`) - Medium Decay (중기 기억)
+        3. **Deep Layer**: 에이전트의 회고(Reflection) 및 핵심 금융 지식 - Low Decay (장기 기억)
+    - **메타데이터 필수 포함**: 모든 청크는 `date` (시점), `importance` (중요도), `reliability` (신뢰도) 정보를 포함하여 **Recency-weighted Retrieval**을 지원해야 함.
+    - FinMem의 핵심인 계층적 메모리 구조를 통해 정보의 중요도와 신뢰도를 관리할 수 있어야 함.
 
 ### **Tier 3: Structured Mart**
 * **목적**: 정형 데이터 관리 및 성과 분석.

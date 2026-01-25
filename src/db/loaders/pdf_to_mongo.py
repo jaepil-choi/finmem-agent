@@ -1,21 +1,23 @@
-import os
 import re
 import pdfplumber
 import argparse
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
-import sys
 
-# Add src to path
-sys.path.append(str(Path(__file__).parents[3]))
-
+from src.config import settings
 from src.db.mongodb_client import MongoDBClient
 
 class KiwoomPDFLoader:
-    def __init__(self, data_root="data/Kiwoom", db_name="reports"):
+    def __init__(self, data_root="data/Kiwoom", db_name=None):
         self.data_root = Path(data_root)
-        self.db_name = db_name
+        self.db_name = db_name or settings.MONGODB_DB_NAME
         self._mongo = None
+        self._setup_logging()
+
+    def _setup_logging(self):
+        logging.basicConfig(level=logging.INFO)
+        self.logger = logging.getLogger(__name__)
 
     @property
     def mongo(self):
@@ -33,7 +35,7 @@ class KiwoomPDFLoader:
                     if page_text:
                         text += page_text + "\n"
         except Exception as e:
-            print(f"Error extracting text from {pdf_path}: {e}")
+            self.logger.error(f"Error extracting text from {pdf_path}: {e}")
         return text
 
     def parse_date(self, filename, category):
@@ -98,21 +100,21 @@ class KiwoomPDFLoader:
     def process_file(self, pdf_path, save=True):
         pdf_path = Path(pdf_path)
         if not pdf_path.exists():
-            print(f"File not found: {pdf_path}")
+            self.logger.warning(f"File not found: {pdf_path}")
             return False
 
         category = self.get_category(pdf_path)
         date = self.parse_date(pdf_path.name, category)
         
         if not date:
-            print(f"Skipping {pdf_path.name}: Could not parse date")
+            self.logger.warning(f"Skipping {pdf_path.name}: Could not parse date")
             return False
 
-        print(f"Processing {pdf_path.name} (Category: {category}, Usable at: {date.date()})")
+        self.logger.info(f"Processing {pdf_path.name} (Category: {category}, Usable at: {date.date()})")
         text = self.extract_text(pdf_path)
         
         if not text:
-            print(f"  No text extracted from {pdf_path.name}")
+            self.logger.warning(f"  No text extracted from {pdf_path.name}")
             return False
 
         if save:
@@ -124,10 +126,10 @@ class KiwoomPDFLoader:
                 "extraction_method": "pdfplumber"
             }
             self.mongo.insert_report(category, date, pdf_path.name, text, metadata)
-            print(f"  Successfully saved to MongoDB.")
+            self.logger.info(f"  Successfully saved to MongoDB.")
         else:
-            print(f"  [Dry-run] Text Length: {len(text)} chars")
-            print(f"  [Dry-run] Preview: {text[:200].replace('\n', ' ')}...")
+            self.logger.info(f"  [Dry-run] Text Length: {len(text)} chars")
+            self.logger.info(f"  [Dry-run] Preview: {text[:200].replace('\n', ' ')}...")
         
         return True
 
@@ -136,7 +138,7 @@ class KiwoomPDFLoader:
             dir_path = self.data_root / category.capitalize()
             if not dir_path.exists(): continue
             
-            print(f"\n--- Batch processing {category} reports ---")
+            self.logger.info(f"--- Batch processing {category} reports ---")
             pdf_files = list(dir_path.rglob("*.pdf"))
             for pdf_path in pdf_files:
                 self.process_file(pdf_path, save=save)
