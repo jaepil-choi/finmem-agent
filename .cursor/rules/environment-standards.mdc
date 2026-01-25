@@ -1,0 +1,12 @@
+---
+description: Standards for Windows, PowerShell, and UV package management
+alwaysApply: true
+---
+
+# Environment & Package Management Standards
+
+- **Shell**: Use **PowerShell** for all terminal operations. Avoid Linux-specific commands.
+- **Package Manager**: Use **uv** exclusively for environment and package management.
+  - **CRITICAL**: Never use `pip install`.
+  - Always use `uv add` for managing dependencies.
+- **Installations**: Always request **explicit user confirmation** before running any command that installs, updates, or modifies packages.
