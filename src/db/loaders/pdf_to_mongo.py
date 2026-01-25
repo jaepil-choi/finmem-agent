@@ -1,7 +1,8 @@
 import os
 import re
 import pdfplumber
-from datetime import datetime
+import argparse
+from datetime import datetime, timedelta
 from pathlib import Path
 import sys
 
@@ -11,10 +12,17 @@ sys.path.append(str(Path(__file__).parents[3]))
 from src.db.mongodb_client import MongoDBClient
 
 class KiwoomPDFLoader:
-    def __init__(self, data_root="data/Kiwoom"):
+    def __init__(self, data_root="data/Kiwoom", db_name="reports"):
         self.data_root = Path(data_root)
-        self.mongo = MongoDBClient()
-        self.mongo.ensure_timeseries_collections(["daily", "weekly", "monthly"])
+        self.db_name = db_name
+        self._mongo = None
+
+    @property
+    def mongo(self):
+        if self._mongo is None:
+            self._mongo = MongoDBClient(db_name=self.db_name)
+            self._mongo.ensure_timeseries_collections(["daily", "weekly", "monthly"])
+        return self._mongo
 
     def extract_text(self, pdf_path):
         text = ""
@@ -29,98 +37,126 @@ class KiwoomPDFLoader:
         return text
 
     def parse_date(self, filename, category):
-        # 1. Check for YYYYMMDD_ prefix (Common for renamed Monthly/Weekly)
+        dt = None
+        # 1. Check for YYYYMMDD_ prefix
         match_prefix = re.match(r'^(\d{8})_', filename)
         if match_prefix:
             try:
-                return datetime.strptime(match_prefix.group(1), "%Y%m%d")
+                dt = datetime.strptime(match_prefix.group(1), "%Y%m%d")
             except ValueError:
                 pass
 
-        # 2. Daily & Weekly specific rule: YYYYMMDD or YYMMDD from start + 1 day
-        if category in ["daily", "weekly"]:
-            # Try 8 digits first
+        # 2. Daily & Weekly specific rule: YYYYMMDD or YYMMDD from start
+        if not dt and category in ["daily", "weekly"]:
             match8 = re.match(r'^(\d{8})', filename)
             if match8:
                 try:
                     dt = datetime.strptime(match8.group(1), "%Y%m%d")
-                    from datetime import timedelta
-                    return dt + timedelta(days=1)
                 except ValueError:
                     pass
             
-            # Try 6 digits
-            match6 = re.match(r'^(\d{6})', filename)
-            if match6:
-                try:
-                    dt = datetime.strptime(f"20{match6.group(1)}", "%Y%m%d")
-                    from datetime import timedelta
-                    return dt + timedelta(days=1)
-                except ValueError:
-                    pass
+            if not dt:
+                match6 = re.match(r'^(\d{6})', filename)
+                if match6:
+                    try:
+                        dt = datetime.strptime(f"20{match6.group(1)}", "%Y%m%d")
+                    except ValueError:
+                        pass
 
         # 3. Standard YYYYMMDD anywhere
-        match8_any = re.search(r'(\d{8})', filename)
-        if match8_any:
-            try:
-                dt = datetime.strptime(match8_any.group(1), "%Y%m%d")
-                if category in ["daily", "weekly"]:
-                    from datetime import timedelta
-                    return dt + timedelta(days=1)
-                return dt
-            except ValueError:
-                pass
+        if not dt:
+            match8_any = re.search(r'(\d{8})', filename)
+            if match8_any:
+                try:
+                    dt = datetime.strptime(match8_any.group(1), "%Y%m%d")
+                except ValueError:
+                    pass
         
         # 4. Search for YYMMDD pattern (6 digits) anywhere
-        match6_any = re.search(r'(\d{6})', filename)
-        if match6_any:
-            try:
-                date_str = match6_any.group(1)
-                dt = datetime.strptime(f"20{date_str}", "%Y%m%d")
-                if category in ["daily", "weekly"]:
-                    from datetime import timedelta
-                    return dt + timedelta(days=1)
-                return dt
-            except ValueError:
-                pass
+        if not dt:
+            match6_any = re.search(r'(?:^|_| )(\d{6})(?:_|\.|$| )', filename)
+            if match6_any:
+                try:
+                    date_str = match6_any.group(1)
+                    dt = datetime.strptime(f"20{date_str}", "%Y%m%d")
+                except ValueError:
+                    pass
         
-        return None
-
-    def process_directory(self, category):
-        dir_path = self.data_root / category.capitalize()
-        if not dir_path.exists():
-            print(f"Directory not found: {dir_path}")
-            return
-
-        print(f"Processing {category} reports...")
-        # Recursively find all pdfs
-        pdf_files = list(dir_path.rglob("*.pdf"))
-        
-        for pdf_path in pdf_files:
-            date = self.parse_date(pdf_path.name, category)
-            if not date:
-                print(f"Skipping {pdf_path.name}: Could not parse date")
-                continue
-
-            print(f"  - Loading {pdf_path.name} (Usable at: {date.date()})")
-            text = self.extract_text(pdf_path)
+        # Apply +1 day lag for Daily and Weekly to avoid forward-looking bias
+        if dt and category in ["daily", "weekly"]:
+            dt = dt + timedelta(days=1)
             
-            if text:
-                metadata = {
-                    "filename": pdf_path.name,
-                    "source_path": str(pdf_path),
-                    "category": category,
-                    "processed_at": datetime.now()
-                }
-                self.mongo.insert_report(category, date, pdf_path.name, text, metadata)
-                print(f"    Stored in MongoDB.")
-            else:
-                print(f"    No text extracted from {pdf_path.name}")
+        return dt
 
-    def run(self):
+    def get_category(self, pdf_path):
+        path_str = str(pdf_path).lower()
+        if "daily" in path_str: return "daily"
+        if "weekly" in path_str: return "weekly"
+        if "monthly" in path_str: return "monthly"
+        return "daily"
+
+    def process_file(self, pdf_path, save=True):
+        pdf_path = Path(pdf_path)
+        if not pdf_path.exists():
+            print(f"File not found: {pdf_path}")
+            return False
+
+        category = self.get_category(pdf_path)
+        date = self.parse_date(pdf_path.name, category)
+        
+        if not date:
+            print(f"Skipping {pdf_path.name}: Could not parse date")
+            return False
+
+        print(f"Processing {pdf_path.name} (Category: {category}, Usable at: {date.date()})")
+        text = self.extract_text(pdf_path)
+        
+        if not text:
+            print(f"  No text extracted from {pdf_path.name}")
+            return False
+
+        if save:
+            metadata = {
+                "filename": pdf_path.name,
+                "source_path": str(pdf_path),
+                "category": category,
+                "processed_at": datetime.now(),
+                "extraction_method": "pdfplumber"
+            }
+            self.mongo.insert_report(category, date, pdf_path.name, text, metadata)
+            print(f"  Successfully saved to MongoDB.")
+        else:
+            print(f"  [Dry-run] Text Length: {len(text)} chars")
+            print(f"  [Dry-run] Preview: {text[:200].replace('\n', ' ')}...")
+        
+        return True
+
+    def process_all(self, save=True):
         for category in ["daily", "weekly", "monthly"]:
-            self.process_directory(category)
+            dir_path = self.data_root / category.capitalize()
+            if not dir_path.exists(): continue
+            
+            print(f"\n--- Batch processing {category} reports ---")
+            pdf_files = list(dir_path.rglob("*.pdf"))
+            for pdf_path in pdf_files:
+                self.process_file(pdf_path, save=save)
+
+    def close(self):
+        if self._mongo:
+            self._mongo.close()
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Kiwoom PDF to MongoDB Loader")
+    parser.add_argument("--file", type=str, help="Path to a specific PDF file to process")
+    parser.add_argument("--dry-run", action="store_true", help="Do not save to database, just show results")
+    
+    args = parser.parse_args()
     loader = KiwoomPDFLoader()
-    loader.run()
+    
+    try:
+        if args.file:
+            loader.process_file(args.file, save=not args.dry_run)
+        else:
+            loader.process_all(save=not args.dry_run)
+    finally:
+        loader.close()
