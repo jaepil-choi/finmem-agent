@@ -16,11 +16,14 @@ To ensure data integrity, search efficiency, and analytical performance, the sys
 
 ## 3. Component Design
 
-### 3.1. Modular RAG (Strategy Pattern)
-The retrieval logic is decoupled from the agents. A global RAG strategy is injected into all agents during execution to ensure consistency and facilitate comparison between different RAG methods.
-- **Naive RAG**: Standard similarity-based retrieval.
-- **Agentic RAG (CRAG/Self-RAG)**: LLM-based relevance grading and query rewriting.
-- **FinMem RAG**: Score-based retrieval using Recency and Importance.
+### 3.1. Modular RAG (Strategy Pattern + LangGraph)
+The retrieval logic is decoupled from orchestration. Retrieval is managed through a **LangGraph StateGraph**, where each step (Retrieve, Grade, Generate) is a node. The actual search logic is implemented via the **Strategy Pattern**, allowing pluggable retrieval engines.
+
+- **Naive RAG**: Standard similarity-based retrieval with strict metadata-level date filtering.
+- **Agentic RAG (CRAG/Self-RAG)**: LLM-based relevance grading and query rewriting (Planned).
+- **FinMem RAG**: Score-based retrieval using Recency and Importance (Planned).
+
+**Look-ahead Bias Prevention**: A `target_date` is maintained in the `GraphState`. The RAG Strategy uses this date to perform a **Hard Filter** on vector database metadata, ensuring only historically valid documents are retrieved.
 
 ### 3.2. Factor Theme Committee (Ensemble for Uncertainty)
 The system manages **13 Factor Theme Committees** (e.g., Value, Quality, Momentum). Each committee consists of multiple **Identical Sub-Agents** to quantify the model's confidence.
@@ -50,6 +53,27 @@ Settings are managed through modular YAML files to ensure scalability.
 
 ## 5. Agentic Workflow (LangGraph)
 
+The system utilizes **LangGraph** to orchestrate complex agentic flows. The state is maintained in a `GraphState` object and persisted using a `MemorySaver` checkpointer.
+
+### 5.1. RAG Pipeline Flow
+The basic RAG pipeline is implemented as a linear `StateGraph` with strict temporal constraints.
+
+```mermaid
+flowchart TD
+    START -->|initial_state| Retrieve["Retrieve Node (Strategy Pattern)"]
+    Retrieve -->|context| Generate["Generate Node (LLM + History)"]
+    Generate -->|answer| END
+    
+    subgraph State["GraphState (Persistent)"]
+        target_date["Target Date (Hard Filter)"]
+        messages["Message History (Checkpointed)"]
+        context_docs["Retrieved Documents"]
+    end
+```
+
+### 5.2. Global Committee Workflow
+The overall portfolio construction process follows a broadcast-and-aggregate pattern.
+
 ```mermaid
 flowchart TD
     Start([Start]) --> Init["Init State (Target Date, Macro Question, RAG Strategy)"]
@@ -66,19 +90,19 @@ flowchart TD
                 VN[Agent N...]
             end
             
-            Retriever["Retriever (Global Strategy)"]
+            RetrieverNode["Retriever Node (LangGraph)"]
             PromptBuilder["Prompt Assembly (Risk + Expertise)"]
             
             V1 & V2 & VN --> PromptBuilder
-            PromptBuilder --> Retriever
-            Retriever --> Vote["Individual Votes (+1, 0, -1)"]
+            PromptBuilder --> RetrieverNode
+            RetrieverNode --> Vote["Individual Votes (+1, 0, -1)"]
             Vote --> Agg["Calculate Q_value & Omega_value"]
         end
 
         %% ... other 12 committees ...
     end
 
-    Broadcast --> ValueCommittee
+    Broadcast --> FactorCommittees
     
     Agg --> GlobalAgg["Combine into Global Q Vector & Omega Matrix"]
     GlobalAgg --> Optimize["Black-Litterman Optimization"]
@@ -93,7 +117,8 @@ flowchart TD
 ---
 
 ## 6. Design Patterns
-- **Strategy Pattern**: Modular RAG strategies injectable into agents.
+- **Strategy Pattern**: Modular RAG strategies injectable into LangGraph nodes.
+- **State Pattern**: Graph-based state management via LangGraph `StateGraph`.
 - **Factory Pattern**: Dynamic creation of committees and agents from YAML configurations.
 - **Builder Pattern**: Dynamic assembly of system prompts from modular fragments.
 - **Repository Pattern**: Abstracted data access for MongoDB, Vector DB, and Parquet.
@@ -110,6 +135,11 @@ src/
 │   ├── committee.py     # Committee aggregation logic (Mean/Var)
 │   └── agent.py         # Base Agent class
 ├── rag/                 # Strategy pattern for retrieval
+│   ├── base.py          # Abstract base class
+│   └── strategies/      # Specific retrieval implementations (Naive, etc.)
 ├── db/                  # Data access layer (Repository pattern)
 └── graph/               # LangGraph orchestration
+    ├── state.py         # GraphState definition
+    ├── builder.py       # Graph compilation logic
+    └── nodes/           # Node implementations (Retrieve, Generate, etc.)
 ```
