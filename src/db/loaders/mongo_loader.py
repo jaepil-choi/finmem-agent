@@ -1,9 +1,9 @@
 import re
 import pdfplumber
-import argparse
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Optional
 
 from src.config import settings
 from src.db.mongodb_client import MongoDBClient
@@ -16,7 +16,6 @@ class KiwoomPDFLoader:
         self._setup_logging()
 
     def _setup_logging(self):
-        logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(__name__)
 
     @property
@@ -26,7 +25,7 @@ class KiwoomPDFLoader:
             self._mongo.ensure_timeseries_collections(["daily", "weekly", "monthly"])
         return self._mongo
 
-    def extract_text(self, pdf_path):
+    def extract_text(self, pdf_path: Path) -> str:
         text = ""
         try:
             with pdfplumber.open(pdf_path) as pdf:
@@ -38,9 +37,8 @@ class KiwoomPDFLoader:
             self.logger.error(f"Error extracting text from {pdf_path}: {e}")
         return text
 
-    def parse_date(self, filename, category):
+    def parse_date(self, filename: str, category: str) -> Optional[datetime]:
         dt = None
-        # 1. Check for YYYYMMDD_ prefix
         match_prefix = re.match(r'^(\d{8})_', filename)
         if match_prefix:
             try:
@@ -48,7 +46,6 @@ class KiwoomPDFLoader:
             except ValueError:
                 pass
 
-        # 2. Daily & Weekly specific rule: YYYYMMDD or YYMMDD from start
         if not dt and category in ["daily", "weekly"]:
             match8 = re.match(r'^(\d{8})', filename)
             if match8:
@@ -65,7 +62,6 @@ class KiwoomPDFLoader:
                     except ValueError:
                         pass
 
-        # 3. Standard YYYYMMDD anywhere
         if not dt:
             match8_any = re.search(r'(\d{8})', filename)
             if match8_any:
@@ -74,7 +70,6 @@ class KiwoomPDFLoader:
                 except ValueError:
                     pass
         
-        # 4. Search for YYMMDD pattern (6 digits) anywhere
         if not dt:
             match6_any = re.search(r'(?:^|_| )(\d{6})(?:_|\.|$| )', filename)
             if match6_any:
@@ -84,21 +79,19 @@ class KiwoomPDFLoader:
                 except ValueError:
                     pass
         
-        # Apply +1 day lag for Daily and Weekly to avoid forward-looking bias
         if dt and category in ["daily", "weekly"]:
             dt = dt + timedelta(days=1)
             
         return dt
 
-    def get_category(self, pdf_path):
+    def get_category(self, pdf_path: Path) -> str:
         path_str = str(pdf_path).lower()
         if "daily" in path_str: return "daily"
         if "weekly" in path_str: return "weekly"
         if "monthly" in path_str: return "monthly"
         return "daily"
 
-    def process_file(self, pdf_path, save=True):
-        pdf_path = Path(pdf_path)
+    def process_file(self, pdf_path: Path, save=True) -> bool:
         if not pdf_path.exists():
             self.logger.warning(f"File not found: {pdf_path}")
             return False
@@ -127,9 +120,6 @@ class KiwoomPDFLoader:
             }
             self.mongo.insert_report(category, date, pdf_path.name, text, metadata)
             self.logger.info(f"  Successfully saved to MongoDB.")
-        else:
-            self.logger.info(f"  [Dry-run] Text Length: {len(text)} chars")
-            self.logger.info(f"  [Dry-run] Preview: {text[:200].replace('\n', ' ')}...")
         
         return True
 
@@ -146,19 +136,3 @@ class KiwoomPDFLoader:
     def close(self):
         if self._mongo:
             self._mongo.close()
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Kiwoom PDF to MongoDB Loader")
-    parser.add_argument("--file", type=str, help="Path to a specific PDF file to process")
-    parser.add_argument("--dry-run", action="store_true", help="Do not save to database, just show results")
-    
-    args = parser.parse_args()
-    loader = KiwoomPDFLoader()
-    
-    try:
-        if args.file:
-            loader.process_file(args.file, save=not args.dry_run)
-        else:
-            loader.process_all(save=not args.dry_run)
-    finally:
-        loader.close()
