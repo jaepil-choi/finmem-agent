@@ -66,6 +66,12 @@ def test_rag_graph():
     
     print("\n--- Follow-up Results ---")
     print(f"Answer: {result_2['answer'][:200]}...")
+    print(f"Committee Views: {result_2.get('committee_views', {}).keys()}")
+    if 'Value' in result_2.get('committee_views', {}):
+        view = result_2['committee_views']['Value']
+        print(f"Value View Magnitude (Q): {view['q_value']}")
+        print(f"Value Uncertainty (Omega): {view['omega_value']}")
+    
     print(f"History length (messages): {len(result_2['messages'])}")
     
     if len(result_2['messages']) > 2:
