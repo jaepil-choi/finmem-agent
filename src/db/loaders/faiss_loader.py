@@ -39,15 +39,16 @@ class FAISSLoader:
             return "shallow"
         if category in ["weekly", "monthly"]:
             return "intermediate"
-        return "archive"
+        raise ValueError(f"Unknown category: {category}. Expected 'daily', 'weekly', or 'monthly'.")
 
     def process_collection(self, collection_name: str, limit: Optional[int] = None, dry_run: bool = False, batch_size: int = 50):
         tier = self.get_tier_for_category(collection_name)
         self.logger.info(f"Syncing MongoDB collection '{collection_name}' to FAISS tier '{tier}'")
         
-        # Paper-based initial Importance assignment (Set to 0 initially)
-        importance_map = {"daily": 0, "weekly": 0, "monthly": 0}
-        initial_importance = importance_map.get(collection_name, 0)
+        # Paper-based initial Importance assignment
+        # Initializing with 40 as a baseline, and 0 for access counter.
+        initial_importance = 40.0
+        initial_access_counter = 0
 
         # 1. Fetch documents from MongoDB
         query = self.mongo.db[collection_name].find()
@@ -71,6 +72,7 @@ class FAISSLoader:
                     "category": collection_name,
                     "tier": tier,
                     "importance": initial_importance,
+                    "access_counter": initial_access_counter,
                     **m_doc.get("metadata", {})
                 }
             )

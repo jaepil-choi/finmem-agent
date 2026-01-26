@@ -10,6 +10,7 @@ class PromptBuilder:
         self.risk_profile: Dict[str, Any] = {}
         self.retrieved_context: str = ""
         self.user_query: str = ""
+        self.actual_return: float = 0.0
 
     def set_target_date(self, target_date: datetime) -> 'PromptBuilder':
         self.target_date = target_date
@@ -33,6 +34,10 @@ class PromptBuilder:
 
     def set_user_query(self, query: str) -> 'PromptBuilder':
         self.user_query = query
+        return self
+
+    def set_actual_return(self, actual_return: float) -> 'PromptBuilder':
+        self.actual_return = actual_return
         return self
 
     def build_system_prompt(self) -> str:
@@ -105,5 +110,67 @@ You MUST respond in strict JSON format:
 
 ### Investor Query
 {question}
+"""
+        return prompt
+
+    def build_reflection_prompt(self, context: str) -> str:
+        """
+        Assembles the reflection prompt for training mode.
+        """
+        date_str = self.target_date.strftime("%Y-%m-%d") if self.target_date else "Unknown"
+        expertise_name = self.factor_expertise.get('name', 'General')
+
+        prompt = f"""### Reflection Task: {expertise_name}
+The current date is {date_str}. 
+
+### Observed Market Fact
+The actual return for the '{expertise_name}' factor for the period following {date_str} was: {self.actual_return:+.4f}
+
+### Instructions
+Given the provided 'Long-term Memory' (Retrieved Context), explain why the financial market fluctuation behaved like this. 
+Identify which pieces of information were most relevant to this outcome.
+
+### Long-term Memory (Retrieved Context)
+{context}
+
+### Output Requirement
+You MUST respond in strict JSON format:
+{{
+  "summary_reason": "<concise explanation of why the market moved this way>",
+  "cited_doc_ids": [<list of document IDs that were most relevant, e.g., ["doc_1", "doc_2"]>]
+}}
+"""
+        return prompt
+
+    def build_misleading_reflection_prompt(self, context: str) -> str:
+        """
+        Assembles a reflection prompt specifically focused on identifying 
+        misleading or contradictory documents.
+        """
+        date_str = self.target_date.strftime("%Y-%m-%d") if self.target_date else "Unknown"
+        expertise_name = self.factor_expertise.get('name', 'General')
+
+        prompt = f"""### Post-Mortem Reflection Task: {expertise_name}
+The current date is {date_str}. 
+
+### Observed Market Fact
+The actual return for the '{expertise_name}' factor for the period following {date_str} was: {self.actual_return:+.4f}
+
+### The Problem
+The agent committee failed to predict this outcome correctly (or was neutral when the market moved significantly).
+
+### Instructions
+Review the provided 'Long-term Memory' (Retrieved Context). Identify any documents that were **misleading**, **contradictory** to the actual outcome, or **incorrectly interpreted**. 
+If you can find documents that might have caused the agent to make a wrong or indecisive prediction, list them.
+
+### Long-term Memory (Retrieved Context)
+{context}
+
+### Output Requirement
+You MUST respond in strict JSON format:
+{{
+  "summary_reason": "<explanation of how these documents were misleading or contradictory>",
+  "cited_doc_ids": [<list of document IDs that were misleading/contradictory, e.g., ["doc_1", "doc_2"]>]
+}}
 """
         return prompt

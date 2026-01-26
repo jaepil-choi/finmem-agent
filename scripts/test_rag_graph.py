@@ -79,6 +79,32 @@ def test_rag_graph():
     else:
         print("❌ Multi-turn history NOT preserved.")
 
+    # 5. Test Case 3: Training Mode with Reflection
+    print("\n[Test 3] Testing Training Mode with Reflection")
+    train_question = "How should we allocate to the Value factor given current inflation?"
+    train_state = {
+        "question": train_question,
+        "target_date": target_date,
+        "is_training": True,
+        "actual_return": 0.05, # Positive return
+        "target_factor": "Value"
+    }
+    
+    # We use a new thread to avoid confusion with previous chat history
+    config_train = {"configurable": {"thread_id": str(uuid4())}}
+    result_train = app.invoke(train_state, config=config_train)
+    
+    print("\n--- Training Results ---")
+    print(f"Answer: {result_train['answer'][:100]}...")
+    if "reflections" in result_train:
+        reflection = result_train["reflections"].get("Value", {})
+        print(f"✅ Reflection Generated: {reflection.get('summary_reason', 'No reason')[:100]}...")
+        print(f"Cited Docs: {reflection.get('cited_doc_ids', [])}")
+    else:
+        print("❌ Reflection NOT generated.")
+    
+    print("\n=== Testing Complete ===")
+
 if __name__ == "__main__":
     # Ensure environment variables are loaded if needed (though config handles some)
     # This script assumes OPENAI_API_KEY is in .env or environment

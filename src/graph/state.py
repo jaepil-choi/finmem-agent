@@ -33,3 +33,7 @@ class GraphState(TypedDict):
     # Performance and Phase State
     cumulative_return: float  # Cumulative return for path-dependency
     is_training: bool        # Flag to indicate training vs test mode
+    
+    # Self-Evolution State
+    actual_return: float      # Observed factor return for the period
+    reflections: Dict[str, Any] # Detailed reflection reasoning for each committee

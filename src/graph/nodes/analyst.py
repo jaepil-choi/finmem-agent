@@ -46,11 +46,13 @@ def analyst_node(state: GraphState) -> GraphState:
         num_agents=5
     )
     
-    # Prepare context string from retrieved documents
-    context_text = "\n\n".join([
-        f"Document (Source: {doc.metadata.get('filename', 'Unknown')}, Date: {doc.metadata.get('date', 'Unknown')}):\n{doc.page_content}"
-        for doc in state["context"]
-    ])
+    # Prepare context string from retrieved documents with explicit IDs for reflection
+    context_text = ""
+    for i, doc in enumerate(state["context"]):
+        doc_id = f"doc_{i}"
+        # Store the mapping ID in metadata for the reflection node to find it
+        doc.metadata["temp_id"] = doc_id
+        context_text += f"[{doc_id}] (Source: {doc.metadata.get('filename', 'Unknown')}, Date: {doc.metadata.get('date', 'Unknown')}):\n{doc.page_content}\n\n"
     
     # Aggregate views
     view_result = committee.aggregate_views(

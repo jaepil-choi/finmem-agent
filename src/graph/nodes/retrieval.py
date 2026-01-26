@@ -1,25 +1,24 @@
 import logging
 from src.graph.state import GraphState
-from src.rag.strategies.naive import NaiveRAG
+from src.rag.strategies.finmem import FinMemRAG
 
 logger = logging.getLogger(__name__)
 
 def retrieval_node(state: GraphState) -> GraphState:
     """
-    Node that retrieves documents using the NaiveRAG strategy.
-    Strictly respects the target_date from the state.
+    Node that retrieves documents using the FinMemRAG strategy.
+    Combines Similarity, Recency, and Importance for re-ranking.
     """
     logger.info(f"Retrieving documents for query: {state['question']} at target_date: {state['target_date']}")
     
     # Initialize the strategy
-    # In a more complex setup, this could be injected or selected based on state
-    strategy = NaiveRAG()
+    strategy = FinMemRAG()
     
-    # Perform retrieval with HARD date filter
+    # Perform retrieval with FinMem composite scoring
     documents = strategy.retrieve(
         query=state["question"],
         target_date=state["target_date"],
-        k=5 # Default k
+        k=5 
     )
     
     logger.info(f"Retrieved {len(documents)} documents.")

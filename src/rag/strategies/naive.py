@@ -22,7 +22,7 @@ class NaiveRAG(RAGStrategy):
             model="text-embedding-3-small",
             api_key=settings.OPENAI_API_KEY
         )
-        self.tiers = ["shallow", "intermediate", "archive"]
+        self.tiers = ["shallow", "intermediate"]
         self.indices = self._load_indices()
         self._setup_logging()
 
