@@ -3,6 +3,7 @@ from src.config import settings
 from src.graph.state import GraphState
 from src.agents.committee import FactorCommittee
 from src.agents.prompt_builder import PromptBuilder
+from src.agents.risk_manager import select_risk_profile
 
 logger = logging.getLogger(__name__)
 
@@ -18,10 +19,15 @@ def analyst_node(state: GraphState) -> GraphState:
     risk_config = settings.risk_profiles
 
     # 2. Extract specific expertise and risk profile
-    # For now, default risk profile to 'risk_averse' if not specified (conservative)
     expertise = expertise_config.get(target_factor, {})
-    risk_profile = risk_config.get("risk_averse", {}) # Defaulting to risk_averse for safety
-    risk_profile['name'] = "Risk Averse"
+    
+    # Dynamic risk profile selection based on performance and mode
+    is_training = state.get("is_training", False)
+    cumulative_return = state.get("cumulative_return", 0.0)
+    
+    risk_key = select_risk_profile(is_training, cumulative_return)
+    risk_profile = risk_config.get(risk_key, risk_config.get("balanced", {}))
+    risk_profile['name'] = risk_profile.get('name', risk_key.replace('_', ' ').capitalize())
 
     if not expertise:
         logger.warning(f"No expertise found for factor: {target_factor}. Using fallback.")

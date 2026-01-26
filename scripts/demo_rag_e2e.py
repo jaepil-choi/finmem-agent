@@ -1,97 +1,86 @@
 import logging
+import uuid
 from datetime import datetime
-from langchain_openai import ChatOpenAI
-from langchain_core.output_parsers import StrOutputParser
-
-from src.config import settings
-from src.db.repository import ReportRepository
-from src.agents.summarizer import DailySummarizer
-from src.agents.prompt_builder import PromptBuilder
-from src.rag.strategies.naive import NaiveRAG
+from src.graph.builder import create_rag_graph
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def run_e2e_rag_demo(target_date_str: str, factor_theme: str):
+def run_committee_demo(target_date_str: str, factor_theme: str):
+    """
+    Demonstrates the new LangGraph-based RAG pipeline with Agentic Committee views.
+    """
     target_date = datetime.fromisoformat(target_date_str)
-    query = f"오늘 뉴스를 통해 봤을 때 앞으로 {factor_theme} 팩터는 오를거 같아 아니면 내릴 것 같아?"
+    query = f"Based on recent macro trends, what is your outlook for the {factor_theme} factor?"
     
-    print(f"\n{'='*20} E2E RAG DEMO {'='*20}")
+    print(f"\n{'='*20} LANGGRAPH COMMITTEE DEMO {'='*20}")
     print(f"Target Date: {target_date.strftime('%Y-%m-%d')}")
     print(f"Factor Theme: {factor_theme}")
     print(f"User Query: {query}")
     print(f"{'='*54}\n")
 
-    # 1. Initialize Components
-    repo = ReportRepository()
-    summarizer = DailySummarizer()
-    builder = PromptBuilder()
-    rag = NaiveRAG()
-    llm = ChatOpenAI(model="gpt-4o", api_key=settings.OPENAI_API_KEY)
-
-    # 2. Step 1: Retrieve Daily Reports from MongoDB
-    print("[Step 1] Fetching raw reports for the day...")
-    daily_reports = repo.get_reports_by_date(target_date, collections=["daily"])
-    print(f" - Found {len(daily_reports)} reports.")
-
-    # 3. Step 2: Summarize Daily Reports
-    print("[Step 2] Generating Daily News Summary...")
-    daily_summary = summarizer.summarize(daily_reports)
-    print(f"\n--- Daily News Summary ---\n{daily_summary}\n")
-
-    # 4. Step 3: Perform RAG (Date-constrained, top 1)
-    print("[Step 3] Retrieving long-term memory (RAG)...")
-    # We use the factor theme itself as a query for memory to find relevant context
-    rag_results = rag.retrieve(factor_theme, target_date=target_date, k=1)
+    # 1. Initialize the Graph
+    print("[Step 1] Initializing LangGraph RAG Pipeline...")
+    app = create_rag_graph()
     
-    context_text = "관련된 과거 기록이 없습니다."
-    if rag_results:
-        doc = rag_results[0]
-        context_text = f"Source: {doc.metadata.get('filename')} (Date: {doc.metadata.get('date')})\nContent: {doc.page_content}"
-        print(f" - Found relevant memory from {doc.metadata.get('date')}")
-    else:
-        print(" - No relevant memory found.")
-
-    # 5. Step 4: Build Final Prompts
-    print("[Step 4] Assembling final prompt...")
-    builder.set_target_date(target_date)\
-           .set_daily_summary(daily_summary)\
-           .set_retrieved_context(context_text)\
-           .set_user_query(query)\
-           .set_factor_expertise(f"{factor_theme} 팩터에 대한 전문 지식을 활용하십시오.")\
-           .set_risk_profile("Balanced")
-
-    system_prompt = builder.build_system_prompt()
-    user_prompt = builder.build_user_prompt()
-
-    # 6. Step 5: Generate Final Answer
-    print("[Step 5] Generating final analysis using LLM...")
-    messages = [
-        ("system", system_prompt),
-        ("user", user_prompt)
-    ]
+    # 2. Setup Configuration (thread_id for persistent state)
+    config = {"configurable": {"thread_id": str(uuid.uuid4())}}
     
+    # 3. Prepare Initial State
+    initial_state = {
+        "question": query,
+        "target_date": target_date,
+        "target_factor": factor_theme, # Pass target factor
+        "messages": [],
+        "cumulative_return": 0.05,     # Example: Start with positive return (Risk-Seeking)
+        "is_training": False           # Demo defaults to Test mode logic
+    }
+
+    # 4. Execute the Graph
+    print("[Step 2] Executing Graph (Retrieve -> Analyze -> Generate)...")
     try:
-        response = llm.invoke(messages)
-        answer = response.content
-        print(f"\n--- Final Agent Analysis ---\n{answer}\n")
+        final_state = app.invoke(initial_state, config=config)
         
-        if rag_results:
-            print(f"{'='*20} SOURCE EVIDENCE {'='*20}")
-            print(f"The analysis above was supported by the following FAISS memory:")
-            print(f" - Filename: {rag_results[0].metadata.get('filename')}")
-            print(f" - Date: {rag_results[0].metadata.get('date')}")
-            print(f" - Tier: {rag_results[0].metadata.get('tier', 'N/A')}")
-            print(f" - Similarity Score: {rag_results[0].metadata.get('score', 'N/A'):.4f}")
-            print(f" - Content Chunk: {rag_results[0].page_content[:200]}...")
-            print(f"{'='*54}\n")
-            
-    except Exception as e:
-        print(f"Error during final LLM call: {e}")
+        # 5. Display Committee Views (The Core Intelligence)
+        print(f"\n{'='*20} COMMITTEE ANALYSIS (Q & OMEGA) {'='*20}")
+        views = final_state.get("committee_views", {})
+        
+        if factor_theme in views:
+            view = views[factor_theme]
+            print(f"Factor Theme: {view['factor_theme']}")
+            print(f"View Magnitude (Q): {view['q_value']:+.2f} (Range: -1.0 to +1.0)")
+            print(f"Uncertainty (Ω): {view['omega_value']:.4f} (Higher = More disagreement)")
+            print(f"Avg Confidence: {view['avg_confidence']:.2%}")
+            print(f"Individual Votes: {view['individual_votes']}")
+            print(f"\n--- Consolidated Reasoning ---\n{view['consolidated_reasoning']}")
+        else:
+            # Fallback for now since analyst node hardcodes "Value"
+            print(f"Note: Specific view for '{factor_theme}' not found. Current analyst_node is hardcoded to 'Value' committee.")
+            if "Value" in views:
+                v = views["Value"]
+                print(f"Value View Magnitude (Q): {v['q_value']:+.2f}")
+                print(f"Value Uncertainty (Ω): {v['omega_value']:.4f}")
 
-    repo.close()
+        # 6. Display Final LLM Answer
+        print(f"\n{'='*20} FINAL AGENT RESPONSE {'='*20}")
+        print(final_state["answer"])
+        
+        # 7. Evidence Tracking
+        print(f"\n{'='*20} SOURCE EVIDENCE (DATE-FILTERED) {'='*20}")
+        for i, doc in enumerate(final_state["context"]):
+            print(f"[{i+1}] Source: {doc.metadata.get('filename', 'Unknown')}")
+            print(f"    Date: {doc.metadata.get('date', 'Unknown')}")
+            print(f"    Snippet: {doc.page_content[:150]}...")
+            
+        print(f"{'='*54}\n")
+
+    except Exception as e:
+        print(f"Error during Graph execution: {e}")
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
-    # Example: Use a date that has data
-    run_e2e_rag_demo("2025-04-05", "가치")
+    # Example: Test with a date and the Value factor
+    # Make sure your VECTOR_DB_ROOT has data indexed!
+    run_committee_demo("2023-12-31", "Value")

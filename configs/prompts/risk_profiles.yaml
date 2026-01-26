@@ -8,3 +8,8 @@ risk_profiles:
     name: "Risk-Seeking"
     description: "Growth-oriented stance triggered by positive or zero cumulative returns."
     instruction: "When cumulative return is positive or zero, you are a risk-seeking investor. Positive information have a greater influence on your investment decisions, while negative information have a lesser impact."
+
+  balanced:
+    name: "Balanced (Neutral)"
+    description: "Maintains a rational, symmetric stance between risk and reward. Used during training."
+    instruction: "You are currently in a Balanced state. Give equal weight to positive and negative drivers. Avoid emotional or performance-chasing biases. Your view should reflect the most probable outcome based on the totality of evidence."
