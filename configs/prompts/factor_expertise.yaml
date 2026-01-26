@@ -1,17 +1,246 @@
 factor_expertise:
-  value:
-    name: "Value Factor"
-    focus_metrics: ["PER", "PBR", "EV/EBITDA", "Dividend Yield"]
-    description: "Expertise in identifying undervalued stocks relative to their fundamentals."
-    instruction: "Analyze the macro environment and market reports with a focus on value metrics. Look for signs of mean reversion and margin of safety."
-  quality:
-    name: "Quality Factor"
-    focus_metrics: ["ROE", "Debt-to-Equity", "Earnings Stability"]
-    description: "Expertise in identifying high-quality companies with strong balance sheets."
-    instruction: "Analyze reports focusing on financial health, profitability, and low leverage. Prioritize companies with stable earnings power."
+  accruals:
+    name: "Accruals Factor"
+    definition: "Long companies with low non-cash earnings (high cash flow); Short companies with high non-cash earnings (high accruals)."
+    core_logic:
+      rational:
+        - "Firms with high accruals face Inventory Obsolescence Risk and Liquidity Distress."
+        - "Investors are compensated for holding firms with safer, cash-rich earnings."
+      behavioral:
+        - "Sloan Fixation: Investors fixate on headline Earnings and ignore the quality of those earnings."
+        - "Investors fail to realize that the accrual component of earnings is mean-reverting, while the cash component is persistent."
+    strategy:
+      bullish:
+        - "Earnings Quality concerns"
+        - "Channel stuffing"
+        - "Tightening Credit"
+        - "When cash becomes scarce (recession fears), low-accrual firms outperform."
+      bearish:
+        - "Speculative Boom"
+        - "Early Recovery"
+        - "Cash flow quality is ignored in favor of growth stories."
+
+  debt_issuance:
+    name: "Debt Issuance Factor"
+    definition: "Long companies reducing debt (repurchasers); Short companies issuing new debt."
+    core_logic:
+      rational:
+        - "Pecking Order Theory: Firms prefer financing via Internal Funds > Debt > Equity."
+        - "Issuing Debt signals that internal funds are insufficient to cover investment needs (Negative Signal)."
+        - "Repurchasing Debt signals strong internal cash flow generation (Positive Signal)."
+      behavioral:
+        - "Market Timing: Managers issue debt when they believe interest rates are historically low or their creditworthiness is temporarily overstated."
+    strategy:
+      bullish:
+        - "Deleveraging is the theme."
+        - "When rates rise or credit tightens, firms capable of paying down debt (Long side) are rewarded."
+        - "Issuers are punished during credit tightening."
+      bearish:
+        - "Credit markets are easy."
+        - "Corporate bond issuance is breaking records."
+        - "High supply of debt issuers capitalizing on cheap money."
+
+  investment:
+    name: "Investment Factor"
+    definition: "Long low-asset-growth firms (conservative); Short high-asset-growth firms (aggressive)."
+    core_logic:
+      rational:
+        - "q-Theory: Diminishing Returns. Firms investing heavily usually have lower discount rates (lower cost of capital), implying lower expected returns."
+      behavioral:
+        - "Empire Building: Investors extrapolate past growth too far."
+        - "Investors get excited by aggressive expansion plans (Capex), ignoring that rapid asset growth often leads to bloated inefficiencies and lower future ROE."
+    strategy:
+      bullish:
+        - "Overcapacity warnings"
+        - "Capital Discipline focus"
+        - "Recessionary fears"
+        - "When the market rewards prudence."
+      bearish:
+        - "Early Cycle Expansion"
+        - "When aggressive investment is necessary to capture market share, temporarily rewarding high-growth firms."
+
+  low_leverage:
+    name: "Low Leverage Factor"
+    definition: "Long companies with low financial leverage; Short highly leveraged companies."
+    core_logic:
+      rational:
+        - "Leverage Constraints (BAB): Constrained investors (pension funds) bid up high-leverage stocks to get exposure, lowering their returns."
+        - "Unconstrained arbitrageurs earn the premium for providing liquidity (Long Low Lev / Short High Lev)."
+        - "Agency Risk: Asset managers avoid low-leverage stocks because they track the benchmark poorly (high tracking error)."
+        - "Intermediary Friction: In liquidity crises, leveraged firms face margin spirals and forced deleveraging."
+      behavioral: []
+    strategy:
+      bullish:
+        - "Tightening financial conditions"
+        - "Rising corporate default rates"
+        - "Liquidity Crunch"
+        - "The safety premium spikes."
+      bearish:
+        - "Easy money"
+        - "Risk-on sentiment"
+        - "Credit spread compression"
+        - "When leverage is cheap, the market penalizes safe balance sheets."
+
+  low_risk:
+    name: "Low Risk Factor"
+    definition: "Long low-beta/low-volatility stocks; Short high-beta/high-volatility stocks."
+    core_logic:
+      rational:
+        - "Shadow Cost of Leverage: Constrained investors bid up High Beta stocks. The Low Risk premium is the Shadow Price of leverage constraints."
+        - "Bond Proxy/Duration: Low Vol stocks (Utilities, Staples) have stable cash flows resembling bonds and carry Term Premium risk."
+      behavioral:
+        - "Lottery Preference: Investors overpay for High Beta Lottery Stocks hoping for a jackpot, depressing their future returns."
+    strategy:
+      bullish:
+        - "Flight to Safety"
+        - "Recession fears"
+        - "Market Uncertainty"
+      bearish:
+        - "Rising Interest Rates (hurts Bond Proxies)"
+        - "Bull Market Euphoria"
+        - "Soft Landing"
+
   momentum:
     name: "Momentum Factor"
-    focus_metrics: ["Price Trend", "Relative Strength Index"]
-    description: "Expertise in identifying stocks with strong upward price trends."
-    instruction: "Analyze reports for indicators of persistent trends and positive sentiment. Follow the market strength."
-# ... add other 10 factor themes as needed
+    definition: "Long past 12-month winners; Short past 12-month losers."
+    core_logic:
+      rational:
+        - "Winners have higher exposure to growth rate shocks."
+      behavioral:
+        - "Underreaction: Information Diffusion. Good news takes time to spread (Frog in the pan); prices drift rather than jump."
+        - "Disposition Effect: Investors sell winners too early (slowing the rise) and hold losers too long (delaying the fall)."
+    strategy:
+      bullish:
+        - "Strong Trends"
+        - "Breadth Widening"
+        - "Macro divergence (e.g., clear winners in Energy vs. losers in Tech)."
+      bearish:
+        - "Momentum Crash"
+        - "V-shaped Recovery"
+        - "Sharp Reversal"
+        - "Volatile Markets"
+        - "Junk Rally: If the market rallies after a crash, losers rally hardest."
+
+  profit_growth:
+    name: "Profit Growth Factor"
+    definition: "Long firms with high expected earnings growth; Short low growth."
+    core_logic:
+      rational:
+        - "High expected growth implies high duration."
+      behavioral:
+        - "The market struggles to price the S-curve of adoption and compound growth correctly."
+    strategy:
+      bullish:
+        - "Stagnant Economy"
+        - "Scarce Growth"
+        - "Firms that can grow earnings command a massive Scarcity Premium."
+      bearish:
+        - "Overheating Economy"
+        - "When everyone is growing, you don't need to pay a premium for specific growth stocks."
+
+  profitability:
+    name: "Profitability Factor"
+    definition: "Long high Gross Profit-to-Assets; Short low profitability."
+    core_logic:
+      rational:
+        - "Production-Based: Profitable firms are High Quality with more real options to adapt."
+      behavioral:
+        - "Investors are seduced by Revenue Growth stories and ignore Margin/Profit reality."
+    strategy:
+      bullish:
+        - "Inflationary pressure"
+        - "Rising Input Costs"
+        - "High-margin firms can absorb costs; low-margin firms die."
+      bearish:
+        - "Speculative Bubble"
+        - "When the market chases unprofitable tech/biotech concepts."
+
+  quality:
+    name: "Quality Factor"
+    definition: "Composite of Profitability, Safety, and Payouts."
+    core_logic:
+      rational:
+        - "Insurance premium: You accept lower potential upside for protection against downside."
+      behavioral:
+        - "QARP (Quality at a Reasonable Price): The boring compounding of quality firms is underestimated compared to exciting lottery stocks."
+    strategy:
+      bullish:
+        - "Late Cycle"
+        - "Slowdown"
+        - "Defensive rotation"
+      bearish:
+        - "Junk Rally"
+        - "Liquidity injection"
+        - "In a trash-led rally, Quality lags significantly."
+
+  seasonality:
+    name: "Seasonality Factor"
+    definition: "Long stocks with high historical returns in the current calendar month."
+    core_logic:
+      rational:
+        - "Institutional Flows: Window dressing (Quarter-end), Tax-loss harvesting (Year-end)."
+      behavioral:
+        - "Holiday mood"
+        - "Sell in May sentiment"
+    strategy:
+      bullish:
+        - "Specific calendar effects relevant to now (e.g., heavy tax selling in December implying a bounce in January)."
+      bearish:
+        - "Macro news (War, Fed Policy) overwhelming typical seasonal flows."
+
+  short_term_reversal:
+    name: "Short-Term Reversal Factor"
+    definition: "Long last month's losers; Short last month's winners."
+    core_logic:
+      rational:
+        - "Liquidity Provision: Market makers get paid for holding inventory of stocks everyone is selling."
+      behavioral:
+        - "Overreaction: Panic selling pushes prices below value temporarily."
+    strategy:
+      bullish:
+        - "Panic Selling"
+        - "Oversold conditions"
+        - "High VIX"
+        - "Reversal works best when fear is high."
+      bearish:
+        - "Steady Uptrend"
+        - "Low Volatility"
+        - "In a strong momentum market, betting on reversal is like standing in front of a train."
+
+  size:
+    name: "Size Factor"
+    definition: "Long Small Cap; Short Big Cap."
+    core_logic:
+      rational:
+        - "Liquidity Risk: Small caps are illiquid."
+        - "Information Risk: Less analyst coverage."
+      behavioral:
+        - "Neglect: Institutions can't buy small caps, leaving them undervalued."
+    strategy:
+      bullish:
+        - "Broadening Market"
+        - "Economic Recovery: Small caps are sensitive to the domestic economy."
+      bearish:
+        - "Flight to Mega-caps"
+        - "Rising Bankruptcy Rates"
+        - "Tight Liquidity/Credit Crunch: Small caps die first."
+
+  value:
+    name: "Value Factor"
+    definition: "Long High Book-to-Market; Short Low Book-to-Market."
+    core_logic:
+      rational:
+        - "Investment-Based: Value firms have high Operating Leverage and inflexible assets (Assets in Place)."
+        - "Duration: Value stocks are Short Duration (cash flows now). Growth stocks are Long Duration (cash flows later)."
+      behavioral:
+        - "Over-extrapolation of past bad news."
+    strategy:
+      bullish:
+        - "High Inflation"
+        - "Rising Interest Rates: Short duration helps Value."
+        - "Real Economy recovery"
+      bearish:
+        - "Deflation"
+        - "Tech disruption"
+        - "Secular Stagnation"
+        - "Value Traps"
