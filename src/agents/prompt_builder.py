@@ -59,6 +59,7 @@ Your current risk profile is: {self.risk_profile}
 1. 모든 판단은 반드시 오늘의 날짜({date_str})와 제공된 컨텍스트를 기준으로만 수행하십시오.
 2. 미래 데이터(Look-ahead data)를 알고 있는 것처럼 행동하지 마십시오.
 3. 제공된 'Today's Market News Summary'를 현재의 시장 환경으로 간주하고, 'Retrieved Context'를 당신의 장기 기억으로 활용하십시오.
+4. 답변 시, 'Retrieved Context'에서 인용한 정보가 있다면 반드시 출처(파일명 및 날짜)를 명시하십시오.
 """
         return prompt
 
