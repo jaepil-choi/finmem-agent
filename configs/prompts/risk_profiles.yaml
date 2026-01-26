@@ -1,7 +1,10 @@
 risk_profiles:
   risk_averse:
-    description: "Loss-avoidant strategy when portfolio returns are negative."
-    instruction: "You are currently a risk-averse investor. Negative information has a greater influence on your decisions, while positive information has a lesser impact. Focus on preserving capital."
+    name: "Risk-Averse"
+    description: "Loss-avoidant stance triggered by negative cumulative returns."
+    instruction: "When cumulative return is negative, you are a risk-averse investor. Negative information have a greater influence on your investment decisions, while positive information have a lesser impact."
+  
   risk_seeking:
-    description: "Growth-oriented strategy when portfolio returns are positive."
-    instruction: "You are currently a risk-seeking investor. Positive information has a greater influence on your decisions. Look for opportunities to maximize gains."
+    name: "Risk-Seeking"
+    description: "Growth-oriented stance triggered by positive or zero cumulative returns."
+    instruction: "When cumulative return is positive or zero, you are a risk-seeking investor. Positive information have a greater influence on your investment decisions, while negative information have a lesser impact."
