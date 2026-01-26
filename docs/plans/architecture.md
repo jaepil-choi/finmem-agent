@@ -20,7 +20,7 @@ To ensure data integrity, search efficiency, and analytical performance, the sys
 The retrieval logic is decoupled from the agents. A global RAG strategy is injected into all agents during execution to ensure consistency and facilitate comparison between different RAG methods.
 - **Naive RAG**: Standard similarity-based retrieval.
 - **Agentic RAG (CRAG/Self-RAG)**: LLM-based relevance grading and query rewriting.
-- **FinMem RAG**: Score-based retrieval using Recency, Importance, and Reliability.
+- **FinMem RAG**: Score-based retrieval using Recency and Importance.
 
 ### 3.2. Factor Theme Committee (Ensemble for Uncertainty)
 The system manages **13 Factor Theme Committees** (e.g., Value, Quality, Momentum). Each committee consists of multiple **Identical Sub-Agents** to quantify the model's confidence.

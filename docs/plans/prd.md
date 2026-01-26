@@ -28,8 +28,8 @@
         1. **Shallow Layer**: 일일 시황 및 뉴스 (`daily`) - High Decay (단기 기억)
         2. **Intermediate Layer**: 주간/월간 리포트 및 전망 (`weekly`, `monthly`) - Medium Decay (중기 기억)
         3. **Deep Layer**: 에이전트의 회고(Reflection) 및 핵심 금융 지식 - Low Decay (장기 기억)
-    - **메타데이터 필수 포함**: 모든 청크는 `date` (시점), `importance` (중요도), `reliability` (신뢰도) 정보를 포함하여 **Recency-weighted Retrieval**을 지원해야 함.
-    - FinMem의 핵심인 계층적 메모리 구조를 통해 정보의 중요도와 신뢰도를 관리할 수 있어야 함.
+    - **메타데이터 필수 포함**: 모든 청크는 `date` (시점), `importance` (중요도 - Reflection을 통해 동적으로 업데이트되는 핵심 지표) 정보를 포함하여 **Recency-weighted Retrieval**을 지원해야 함.
+    - FinMem의 핵심인 계층적 메모리 구조를 통해 정보의 중요도를 관리할 수 있어야 함.
 
 ### **Tier 3: Structured Mart**
 * **목적**: 정형 데이터 관리 및 성과 분석.
