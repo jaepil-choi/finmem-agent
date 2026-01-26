@@ -1,12 +1,13 @@
+import yaml
 from datetime import datetime
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict
 
 class PromptBuilder:
     def __init__(self):
         self.target_date: Optional[datetime] = None
         self.daily_summary: str = "No daily summary available."
-        self.factor_expertise: str = ""
-        self.risk_profile: str = "Standard"
+        self.factor_expertise: Dict[str, Any] = {}
+        self.risk_profile: Dict[str, Any] = {}
         self.retrieved_context: str = ""
         self.user_query: str = ""
 
@@ -18,11 +19,11 @@ class PromptBuilder:
         self.daily_summary = summary
         return self
 
-    def set_factor_expertise(self, expertise: str) -> 'PromptBuilder':
+    def set_factor_expertise(self, expertise: Dict[str, Any]) -> 'PromptBuilder':
         self.factor_expertise = expertise
         return self
 
-    def set_risk_profile(self, profile: str) -> 'PromptBuilder':
+    def set_risk_profile(self, profile: Dict[str, Any]) -> 'PromptBuilder':
         self.risk_profile = profile
         return self
 
@@ -36,41 +37,73 @@ class PromptBuilder:
 
     def build_system_prompt(self) -> str:
         """
-        Assembles the system prompt using the components.
+        Assembles the system prompt using the components, 
+        conjoining core logic and strategy.
         """
         date_str = self.target_date.strftime("%Y-%m-%d") if self.target_date else "Unknown"
         
+        # Format Factor Expertise
+        expertise_name = self.factor_expertise.get('name', 'General')
+        expertise_def = self.factor_expertise.get('definition', '')
+        
+        core_logic = self.factor_expertise.get('core_logic', {})
+        rational = "\n- ".join(core_logic.get('rational', []))
+        behavioral = "\n- ".join(core_logic.get('behavioral', []))
+        
+        strategy = self.factor_expertise.get('strategy', {})
+        bullish = "\n- ".join(strategy.get('bullish', []))
+        bearish = "\n- ".join(strategy.get('bearish', []))
+
+        # Format Risk Profile
+        risk_name = self.risk_profile.get('name', 'Standard')
+        risk_instr = self.risk_profile.get('instruction', 'Maintain a balanced perspective.')
+
         prompt = f"""### Role & Expertise
-당신은 금융 공학 및 팩터 투자 전문가입니다. {date_str} 시점의 데이터를 바탕으로 투자 견해를 도출해야 합니다.
+You are a top-tier Quantitative Financial Analyst specialized in the '{expertise_name}'.
+Your mission is to evaluate market conditions and provide a precise investment view (+1, 0, -1) for this factor.
 
-### Simulated Current Date
-오늘 날짜: {date_str}
+### Domain Knowledge: {expertise_name}
+- **Definition**: {expertise_def}
+- **Core Logic (Rational)**:
+- {rational}
+- **Core Logic (Behavioral)**:
+- {behavioral}
 
-### Today's Market News Summary
-{self.daily_summary}
+### Market Strategy Guidelines
+- **Bullish Signals (When to Overweight)**:
+- {bullish}
+- **Bearish Signals (When to Underweight)**:
+- {bearish}
 
-### Factor Expertise Context
-{self.factor_expertise}
+### Current Risk Profile: {risk_name}
+{risk_instr}
 
-### Risk Profile
-Your current risk profile is: {self.risk_profile}
+### Temporal Constraint (CRITICAL)
+- **Simulated Today**: {date_str}
+- All reasoning MUST be based on information available ON OR BEFORE this date. 
+- NEVER use future knowledge.
 
-### Important Instructions
-1. 모든 판단은 반드시 오늘의 날짜({date_str})와 제공된 컨텍스트를 기준으로만 수행하십시오.
-2. 미래 데이터(Look-ahead data)를 알고 있는 것처럼 행동하지 마십시오.
-3. 제공된 'Today's Market News Summary'를 현재의 시장 환경으로 간주하고, 'Retrieved Context'를 당신의 장기 기억으로 활용하십시오.
-4. 답변 시, 'Retrieved Context'에서 인용한 정보가 있다면 반드시 출처(파일명 및 날짜)를 명시하십시오.
+### Output Requirement
+You MUST respond in strict JSON format:
+{{
+  "vote": <+1 | 0 | -1>,
+  "confidence": <float 0.0 to 1.0>,
+  "reasoning": "<concise explanation referencing specific evidence>"
+}}
 """
         return prompt
 
-    def build_user_prompt(self) -> str:
+    def build_user_prompt(self, question: str, context: str) -> str:
         """
         Assembles the user prompt with the query and retrieved context.
         """
-        prompt = f"""### Retrieved Context (Long-term Memory)
-{self.retrieved_context}
+        prompt = f"""### Today's Market News Summary
+{self.daily_summary}
 
-### Question
-{self.user_query}
+### Long-term Memory (Retrieved Context)
+{context}
+
+### Investor Query
+{question}
 """
         return prompt
