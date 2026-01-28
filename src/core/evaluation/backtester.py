@@ -50,21 +50,27 @@ class Backtester:
         
         cumulative_return = 0.0
         
+        # Mapping from Parquet factor names to our internal expertise keys
+        # The explorer subagent noted that parquet names like "Value Factor" 
+        # need to be matched with expertise keys like "value"
+        name_map = {v.get('name', k.capitalize()): k for k, v in settings.factor_expertise.items()}
+        
         for current_date in backtest_dates:
             logger.info(f"--- Backtest Date: {current_date.date()} ---")
             
-            # Fetch actual returns for reflection and performance tracking
-            actual_returns = self.jkp_repo.get_factor_returns(current_date)
+            # Fetch actual returns for all factors
+            raw_actual_returns = self.jkp_repo.get_factor_returns(current_date)
             
-            # Pick a representative actual_return for the state (e.g., the first requested factor)
-            # This is used by the single-factor reflection node logic for now
-            if target_factor == "all":
-                rep_factor = list(settings.factor_expertise.keys())[0]
-            else:
-                rep_factor = target_factor.split(",")[0].strip()
-            
-            rep_actual_return = actual_returns.get(rep_factor, 0.0)
-            
+            # Map returns to our internal keys
+            actual_returns = {}
+            for raw_name, ret in raw_actual_returns.items():
+                internal_key = name_map.get(raw_name)
+                if internal_key:
+                    actual_returns[internal_key] = ret
+                else:
+                    # Fallback for keys that are already mapped or different
+                    actual_returns[raw_name.lower().replace(" ", "_")] = ret
+
             # 1. Invoke the LangGraph StateGraph
             thread_id = str(uuid4())
             config = {"configurable": {"thread_id": thread_id}}
@@ -74,7 +80,7 @@ class Backtester:
                 "target_date": current_date,
                 "target_factor": target_factor,
                 "is_training": is_training,
-                "actual_return": rep_actual_return,
+                "actual_returns": actual_returns,
                 "cumulative_return": cumulative_return,
                 "messages": []
             }

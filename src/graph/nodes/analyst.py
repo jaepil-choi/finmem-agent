@@ -48,7 +48,8 @@ def analyst_node(state: GraphState) -> GraphState:
             logger.warning(f"No expertise found for factor: {factor_key}. Skipping.")
             continue
 
-        theme_name = expertise.get('name', factor_key.capitalize())
+        # Use factor_key as the primary identifier in committee_views to match actual_returns
+        theme_name = factor_key
         logger.info(f"Running committee for: {theme_name}")
 
         # Initialize PromptBuilder for this factor
@@ -56,6 +57,7 @@ def analyst_node(state: GraphState) -> GraphState:
         builder.set_target_date(state["target_date"])\
                .set_factor_expertise(expertise)\
                .set_risk_profile(risk_profile)\
+               .set_daily_summary(state.get("daily_summary", "No daily news available."))\
                .set_user_query(state["question"])
         
         # Create Committee via Factory

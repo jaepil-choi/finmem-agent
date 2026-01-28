@@ -1,68 +1,61 @@
 import logging
 import json
 import re
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from src.graph.state import GraphState
-from src.agents.prompt_builder import PromptBuilder
+from src.agents.prompt_builder import PromptBuilder, ReflectionView
 from src.rag.strategies.finmem import FinMemRAG
 from langchain_openai import ChatOpenAI
 from src.config import settings
 
 logger = logging.getLogger(__name__)
 
-def reflection_node(state: GraphState) -> GraphState:
+def reflection_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     Node that performs self-reflection and updates memory importance.
-    Only active in training mode.
+    Now optimized for a single factor (parallel fan-out).
     """
-    if not state.get("is_training", False):
-        logger.info("Skipping Reflection Node: Not in training mode.")
-        return state
-
+    factor_name = state.get("factor_name")
     actual_return = state.get("actual_return")
-    if actual_return is None:
-        logger.warning("No actual_return provided in state. Cannot perform reflection.")
-        return state
+    view = state.get("view")
+    target_date = state.get("target_date")
+    context = state.get("context", [])
 
-    logger.info("Executing Reflection Node...")
+    if not factor_name or actual_return is None or not view:
+        logger.warning(f"Missing data for reflection on {factor_name}. Skipping.")
+        return {}
 
-    # 1. Identify the committee view to reflect on
-    # For now, we assume the first committee in committee_views
-    if not state.get("committee_views"):
-        logger.warning("No committee views found to reflect on.")
-        return state
-    
-    factor_name = list(state["committee_views"].keys())[0]
-    view = state["committee_views"][factor_name]
-    q_value = view.get("q_value", 0.0)
+    logger.info(f"Executing Reflection Node for factor: {factor_name}...")
 
-    # 2. Prepare Context with IDs (already done in analyst node)
+    # 1. Prepare Context with IDs
     context_text = ""
     doc_map = {}
-    for doc in state["context"]:
+    for doc in context:
         doc_id = doc.metadata.get("temp_id")
         if doc_id:
             doc_map[doc_id] = doc
             context_text += f"[{doc_id}] (Source: {doc.metadata.get('filename', 'Unknown')}, Date: {doc.metadata.get('date', 'Unknown')}):\n{doc.page_content}\n\n"
 
-    # 3. Run Reflection LLM
+    # 2. Run Reflection LLM with Structured Output
     builder = PromptBuilder()
-    builder.set_target_date(state["target_date"])\
+    builder.set_target_date(target_date)\
            .set_factor_expertise({"name": factor_name})\
            .set_actual_return(actual_return)
     
     prompt = builder.build_reflection_prompt(context_text)
     
     llm = ChatOpenAI(model="gpt-4o", api_key=settings.OPENAI_API_KEY, temperature=0)
-    response = llm.invoke([("system", "You are a senior financial analyst performing a post-investment review."), ("human", prompt)])
+    structured_llm = llm.with_structured_output(ReflectionView)
     
-    reflection_data = _parse_reflection_response(response.content)
-    logger.info(f"Reflection Summary: {reflection_data.get('summary_reason')}")
+    response = structured_llm.invoke([
+        ("system", "You are a senior financial analyst performing a post-investment review."),
+        ("human", prompt)
+    ])
     
-    # 4. Calculate Feedback (F)
-    # F = 1 if success, -1 if failure
-    # Neutral (Q=0) penalty logic:
-    # If market moved significantly (|return| > 0.01) but agent was neutral, F = -0.5
+    reflection_data = response.model_dump()
+    q_value = view.get("q_value", 0.0)
+
+    # 3. Calculate Feedback (F)
     feedback = 0.0
     if q_value > 0 and actual_return > 0:
         feedback = 1.0
@@ -73,43 +66,24 @@ def reflection_node(state: GraphState) -> GraphState:
     elif q_value < 0 and actual_return > 0:
         feedback = -1.0
     elif q_value == 0 and abs(actual_return) > 0.01:
-        # Penalize for missing a significant market move
         feedback = -0.5
-        logger.info(f"Applying soft penalty (F={feedback}) for neutral view on significant market move ({actual_return:.4f})")
     
-    # 5. Handle Citations and Multi-step Reflection if needed
+    # 4. Handle Misleading Cases
     cited_ids = reflection_data.get("cited_doc_ids", [])
-    
-    # If no citations and prediction was incorrect or missed a signal, try misleading prompt
     if not cited_ids and feedback < 0:
-        logger.info("No citations found for incorrect/neutral prediction. Retrying with misleading prompt.")
         misleading_prompt = builder.build_misleading_reflection_prompt(context_text)
-        response = llm.invoke([("system", "You are a senior financial analyst performing a post-investment review."), ("human", misleading_prompt)])
-        reflection_data = _parse_reflection_response(response.content)
+        response = structured_llm.invoke([
+            ("system", "You are a senior financial analyst performing a post-investment review."),
+            ("human", misleading_prompt)
+        ])
+        reflection_data = response.model_dump()
         cited_ids = reflection_data.get("cited_doc_ids", [])
-        logger.info(f"Misleading Reflection Summary: {reflection_data.get('summary_reason')}")
 
-    # 6. Update Memory (FAISS) - Skip if no citations
-    if not cited_ids:
-        logger.info("No documents cited in reflection. Skipping importance updates.")
-    elif feedback != 0:
+    # 5. Update Memory (FAISS)
+    if cited_ids and feedback != 0:
         _update_faiss_importance(cited_ids, doc_map, feedback)
 
-    # 7. Update State
-    reflections = state.get("reflections", {})
-    reflections[factor_name] = reflection_data
-    
-    return {"reflections": reflections}
-
-def _parse_reflection_response(content: str) -> Dict[str, Any]:
-    try:
-        match = re.search(r"\{.*\}", content, re.DOTALL)
-        if match:
-            return json.loads(match.group())
-        return {"summary_reason": "Failed to parse reflection.", "cited_doc_ids": []}
-    except Exception as e:
-        logger.error(f"Error parsing reflection: {e}")
-        return {"summary_reason": f"Error: {e}", "cited_doc_ids": []}
+    return {"reflections": {factor_name: reflection_data}}
 
 def _update_faiss_importance(cited_ids: List[str], doc_map: Dict[str, Any], feedback: float):
     """

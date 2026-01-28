@@ -6,7 +6,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
 from src.config import settings
-from src.agents.prompt_builder import PromptBuilder
+from src.agents.prompt_builder import PromptBuilder, CommitteeView
 
 logger = logging.getLogger(__name__)
 
@@ -22,11 +22,12 @@ class BaseAgent:
         model_name: str = "gpt-4o-mini"
     ):
         self.agent_id = agent_id
-        self.model = ChatOpenAI(
+        llm = ChatOpenAI(
             model=model_name,
             api_key=settings.OPENAI_API_KEY,
             temperature=0.7 # Ensemble diversity
         )
+        self.model = llm.with_structured_output(CommitteeView)
 
     def generate_view(
         self, 
@@ -52,18 +53,9 @@ class BaseAgent:
         # but for now we keep it simple as per requirements.
         
         response = self.model.invoke(messages)
-        return self._parse_response(response.content)
+        # response is now a CommitteeView object
+        return response.model_dump()
 
     def _parse_response(self, content: str) -> Dict[str, Any]:
-        """Parses the LLM output into a structured dictionary."""
-        try:
-            # Look for JSON block
-            match = re.search(r"\{.*\}", content, re.DOTALL)
-            if match:
-                # Replace single quotes with double quotes for valid JSON if necessary
-                json_str = match.group()
-                return json.loads(json_str)
-            return {"vote": 0, "confidence": 0, "reasoning": "Failed to parse JSON from response."}
-        except Exception as e:
-            logger.error(f"Error parsing agent response: {e}")
-            return {"vote": 0, "confidence": 0, "reasoning": f"Parsing Error: {str(e)}"}
+        # No longer needed due to structured output
+        pass

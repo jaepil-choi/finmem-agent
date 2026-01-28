@@ -10,12 +10,14 @@ class BlackLittermanOptimizer:
     by combining market priors with agent-generated views and confidence.
     """
     
-    def __init__(self, tau: float = 0.05):
+    def __init__(self, tau: float = 0.05, max_view_return: float = 0.05):
         """
         Initializes the optimizer.
         :param tau: Scaling factor for the uncertainty of the prior distribution.
+        :param max_view_return: The maximum expected return assigned to a full +1/-1 vote.
         """
         self.tau = tau
+        self.max_view_return = max_view_return
 
     def optimize(
         self,
@@ -101,8 +103,13 @@ class BlackLittermanOptimizer:
                     break
             
             if res:
-                views_q[i] = res.get('q_value', 0.0)
-                uncertainty_omega[i] = res.get('omega_value', 1.0)
+                # Scale raw votes (-1 to 1) to expected returns
+                views_q[i] = res.get('q_value', 0.0) * self.max_view_return
+                
+                # Scale variance by the square of max_view_return (0.0025)
+                # This ensures the uncertainty is in the same units as the squared return
+                raw_omega = res.get('omega_value', 1.0)
+                uncertainty_omega[i] = raw_omega * (self.max_view_return ** 2)
         
         optimized_w = self.optimize(target_factors, prior_weights, views_q, uncertainty_omega)
         

@@ -4,6 +4,14 @@ from langchain_core.documents import Document
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 
+def add_reflections(left: Dict[str, Any], right: Dict[str, Any]) -> Dict[str, Any]:
+    """Reducer to merge reflections from parallel nodes."""
+    if not left:
+        return right
+    if not right:
+        return left
+    return {**left, **right}
+
 class GraphState(TypedDict):
     """
     Represents the state of our RAG graph.
@@ -26,6 +34,9 @@ class GraphState(TypedDict):
     
     # Optional: target factor for analysis (default: "value")
     target_factor: str
+
+    # Today's daily summary fetched from MongoDB
+    daily_summary: str
     
     # Conversation history (accumulated)
     messages: Annotated[List[BaseMessage], add_messages]
@@ -35,5 +46,7 @@ class GraphState(TypedDict):
     is_training: bool        # Flag to indicate training vs test mode
     
     # Self-Evolution State
-    actual_return: float      # Observed factor return for the period
-    reflections: Dict[str, Any] # Detailed reflection reasoning for each committee
+    # Observed factor returns for the period (mapping factor name to return)
+    actual_returns: Dict[str, float]
+    # Detailed reflection reasoning for each committee
+    reflections: Annotated[Dict[str, Any], add_reflections]

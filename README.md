@@ -28,8 +28,8 @@ LLM 앙상블을 통해 매크로 분석부터 팩터 배분까지의 과정을 
 
 ### 1. 에이전트 위원회 (불확실성 정량화)
 단일 LLM 대신 **13개의 팩터 테마별 위원회**(예: 가치, 퀄리티, 모멘텀)를 운영합니다.
-- **견해 강도 ($Q$)**: 개별 에이전트 투표(+1, 0, -1)의 평균.
-- **불확실성 ($\Omega$)**: 투표 결과의 분산으로, 최적화 시 가중치 조절에 사용.
+- **견해 강도 ($Q$)**: 개별 에이전트 투표(+1, 0, -1)의 평균값에 상수(예: 0.05)를 곱하여 기대 수익률 스케일로 변환.
+- **불확실성 ($\Omega$)**: 투표 결과의 분산에 상수의 제곱(예: 0.0025)을 곱하여 최적화 시 가중치 조절에 사용.
 
 ### 2. FinMem 검색 및 스코어링
 정규화된 복합 점수[0, 3]를 기반으로 문서를 재정렬합니다:
@@ -58,5 +58,11 @@ $$Score = Similarity + Recency + \frac{Importance}{100}$$
 uv sync
 
 # 자율 진화 학습 루프 실행
-uv run python -m scripts.train_reflection_loop
+uv run python -m scripts.train_reflection_loop --mode train --start 20240225 --end 20240403
 ```
+- **Mode**: `train` (Self-Evolution enabled) or `test` (Evaluation only).
+- **Dates**: Default training (2024.02.25~2024.04.03), Default test (2024.04.04~2024.05.15).
+
+---
+
+## 🧠 핵심 메커니즘

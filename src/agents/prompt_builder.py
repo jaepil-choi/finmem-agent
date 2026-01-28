@@ -1,6 +1,18 @@
 import yaml
 from datetime import datetime
 from typing import Optional, List, Any, Dict
+from pydantic import BaseModel, Field
+
+class CommitteeView(BaseModel):
+    """Structured output for factor committee analysis."""
+    vote: int = Field(..., description="The investment view: +1 (overweight), 0 (neutral), or -1 (underweight)")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score from 0.0 to 1.0")
+    reasoning: str = Field(..., description="Concise explanation referencing specific evidence from the context")
+
+class ReflectionView(BaseModel):
+    """Structured output for agent self-reflection."""
+    summary_reason: str = Field(..., description="Concise explanation of why the market moved this way")
+    cited_doc_ids: List[str] = Field(..., description="List of document IDs that were most relevant or misleading")
 
 class PromptBuilder:
     def __init__(self):
@@ -89,12 +101,7 @@ Your mission is to evaluate market conditions and provide a precise investment v
 - NEVER use future knowledge.
 
 ### Output Requirement
-You MUST respond in strict JSON format:
-{{
-  "vote": <+1 | 0 | -1>,
-  "confidence": <float 0.0 to 1.0>,
-  "reasoning": "<concise explanation referencing specific evidence>"
-}}
+You MUST respond in the requested structured format.
 """
         return prompt
 
@@ -134,11 +141,7 @@ Identify which pieces of information were most relevant to this outcome.
 {context}
 
 ### Output Requirement
-You MUST respond in strict JSON format:
-{{
-  "summary_reason": "<concise explanation of why the market moved this way>",
-  "cited_doc_ids": [<list of document IDs that were most relevant, e.g., ["doc_1", "doc_2"]>]
-}}
+You MUST respond in the requested structured format.
 """
         return prompt
 
@@ -167,10 +170,6 @@ If you can find documents that might have caused the agent to make a wrong or in
 {context}
 
 ### Output Requirement
-You MUST respond in strict JSON format:
-{{
-  "summary_reason": "<explanation of how these documents were misleading or contradictory>",
-  "cited_doc_ids": [<list of document IDs that were misleading/contradictory, e.g., ["doc_1", "doc_2"]>]
-}}
+You MUST respond in the requested structured format.
 """
         return prompt
