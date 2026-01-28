@@ -73,6 +73,9 @@ def analyst_node(state: GraphState) -> GraphState:
                .set_daily_summary(state.get("daily_summary", "No daily news available."))\
                .set_user_query(state["question"])
         
+        # PROMPT VERIFICATION: Log regime data presence
+        logger.info(f"Regime data fed to committee {theme_name}: {list(regime_metrics.keys())}")
+        
         # Create Committee via Factory
         committee = CommitteeFactory.create_committee(factor_key, num_agents=5)
         

@@ -31,5 +31,20 @@ class ReportRepository:
         
         return all_reports
 
+    def get_available_report_dates(self, collection: str = "daily") -> List[datetime]:
+        """
+        Returns a sorted list of unique dates available in the specified MongoDB collection.
+        """
+        if collection not in self.client.db.list_collection_names():
+            return []
+        
+        # Use distinct to get unique dates
+        # Note: Depending on how date is stored, we might need to normalize to just date (Y-M-D)
+        raw_dates = self.client.db[collection].distinct("date")
+        
+        # Convert to set of dates (ignoring time) and back to sorted list of datetimes
+        unique_days = sorted({dt.replace(hour=0, minute=0, second=0, microsecond=0) for dt in raw_dates if isinstance(dt, datetime)})
+        return unique_days
+
     def close(self):
         self.client.close()

@@ -35,24 +35,30 @@ class Backtester:
         """
         Runs the backtest loop.
         """
-        available_dates = self.jkp_repo.get_available_dates()
+        from src.db.repository import ReportRepository
+        report_repo = ReportRepository()
+        
+        available_return_dates = {d.date() for d in self.jkp_repo.get_available_dates()}
+        available_report_dates = {d.date() for d in report_repo.get_available_report_dates(collection="daily")}
+        
+        # Intersect dates: we need both returns and daily reports
+        valid_dates = sorted(available_return_dates.intersection(available_report_dates))
+        
         # Filter for dates in range
         backtest_dates = [
-            d for d in available_dates 
-            if self.start_date <= d <= self.end_date
+            datetime.combine(d, datetime.min.time()) for d in valid_dates 
+            if self.start_date.date() <= d <= self.end_date.date()
         ]
         
         if not backtest_dates:
-            logger.warning(f"No available JKP data found between {self.start_date} and {self.end_date}")
+            logger.warning(f"No dates found with both returns and reports between {self.start_date.date()} and {self.end_date.date()}")
             return
             
-        logger.info(f"Starting backtest for {len(backtest_dates)} days...")
+        logger.info(f"Starting backtest for {len(backtest_dates)} valid days (Intersection of Returns and Reports)...")
         
         cumulative_return = 0.0
         
         # Mapping from Parquet factor names to our internal expertise keys
-        # The explorer subagent noted that parquet names like "Value Factor" 
-        # need to be matched with expertise keys like "value"
         name_map = {v.get('name', k.capitalize()): k for k, v in settings.factor_expertise.items()}
         
         for current_date in backtest_dates:
@@ -61,6 +67,16 @@ class Backtester:
             # Fetch actual returns for all factors
             raw_actual_returns = self.jkp_repo.get_factor_returns(current_date)
             
+            if not raw_actual_returns:
+                logger.warning(f"Skipping {current_date.date()}: Missing factor returns.")
+                continue
+            
+            # Double check reports exist (redundant but safe)
+            today_reports = report_repo.get_reports_by_date(current_date, collections=["daily"])
+            if not today_reports:
+                logger.warning(f"Skipping {current_date.date()}: Missing daily reports.")
+                continue
+
             # Map returns to our internal keys
             actual_returns = {}
             for raw_name, ret in raw_actual_returns.items():
@@ -68,7 +84,6 @@ class Backtester:
                 if internal_key:
                     actual_returns[internal_key] = ret
                 else:
-                    # Fallback for keys that are already mapped or different
                     actual_returns[raw_name.lower().replace(" ", "_")] = ret
 
             # 1. Invoke the LangGraph StateGraph

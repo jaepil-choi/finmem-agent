@@ -31,7 +31,7 @@ def run_committee_demo(target_date_str: str, factor_theme: str):
     initial_state = {
         "question": query,
         "target_date": target_date,
-        "target_factor": factor_theme, # Pass target factor
+        "target_factor": factor_theme.lower(), # Normalize to internal key (lowercase)
         "messages": [],
         "cumulative_return": 0.05,     # Example: Start with positive return (Risk-Seeking)
         "is_training": False           # Demo defaults to Test mode logic
@@ -46,21 +46,17 @@ def run_committee_demo(target_date_str: str, factor_theme: str):
         print(f"\n{'='*20} COMMITTEE ANALYSIS (Q & OMEGA) {'='*20}")
         views = final_state.get("committee_views", {})
         
-        if factor_theme in views:
-            view = views[factor_theme]
-            print(f"Factor Theme: {view['factor_theme']}")
+        factor_key = factor_theme.lower()
+        if factor_key in views:
+            view = views[factor_key]
+            print(f"Factor Key: {view['factor_theme']}")
             print(f"View Magnitude (Q): {view['q_value']:+.2f} (Range: -1.0 to +1.0)")
             print(f"Uncertainty (Ω): {view['omega_value']:.4f} (Higher = More disagreement)")
             print(f"Avg Confidence: {view['avg_confidence']:.2%}")
             print(f"Individual Votes: {view['individual_votes']}")
             print(f"\n--- Consolidated Reasoning ---\n{view['consolidated_reasoning']}")
         else:
-            # Fallback for now since analyst node hardcodes "Value"
-            print(f"Note: Specific view for '{factor_theme}' not found. Current analyst_node is hardcoded to 'Value' committee.")
-            if "Value" in views:
-                v = views["Value"]
-                print(f"Value View Magnitude (Q): {v['q_value']:+.2f}")
-                print(f"Value Uncertainty (Ω): {v['omega_value']:.4f}")
+            print(f"Note: Specific view for '{factor_theme}' ({factor_key}) not found in views: {list(views.keys())}")
 
         # 6. Display Final LLM Answer
         print(f"\n{'='*20} FINAL AGENT RESPONSE {'='*20}")
