@@ -32,6 +32,9 @@ class GraphState(TypedDict):
     # Dict mapping factor_theme -> {q_value, omega_value, reasoning}
     committee_views: Dict[str, Any]
     
+    # Factor Regime Data per committee
+    regime_data: Dict[str, Any]
+
     # Optional: target factor for analysis (default: "value")
     target_factor: str
 

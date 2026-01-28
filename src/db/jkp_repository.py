@@ -53,6 +53,28 @@ class JKPRepository:
             
         return returns
 
+    def get_factor_history(self, factor_name: str, end_date: datetime, window_days: int = 252) -> pd.Series:
+        """
+        Fetches historical returns for a specific factor up to end_date.
+        Returns a pandas Series indexed by date.
+        """
+        if self._df is None:
+            return pd.Series()
+
+        # Filter by name and date range
+        mask = (self._df['name'] == factor_name) & (self._df['date'] <= end_date)
+        history = self._df[mask].sort_values('date')
+
+        if history.empty:
+            logger.warning(f"No history found for factor: {factor_name} before {end_date}")
+            return pd.Series()
+
+        # Tail the last window_days
+        history = history.tail(window_days)
+        
+        # Set date as index and return the 'ret' column as a Series
+        return history.set_index('date')['ret']
+
     def get_available_dates(self) -> List[datetime]:
         """Returns a list of unique dates available in the dataset."""
         if self._df is None:

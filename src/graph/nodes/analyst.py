@@ -5,6 +5,8 @@ from src.agents.committee import FactorCommittee
 from src.agents.prompt_builder import PromptBuilder
 from src.agents.risk_manager import select_risk_profile
 from src.agents.factory import CommitteeFactory
+from src.db.jkp_repository import JKPRepository
+from src.core.utils.regime import RegimeCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +43,11 @@ def analyst_node(state: GraphState) -> GraphState:
 
     # 4. Execute Committees (Sequential for now, can be parallelized later)
     committee_views = state.get("committee_views", {})
+    regime_data = state.get("regime_data", {})
+    
+    # Initialize Repo and Calculator once
+    repo = JKPRepository()
+    regime_calc = RegimeCalculator()
     
     for factor_key in factor_keys:
         expertise = settings.factor_expertise.get(factor_key)
@@ -52,11 +59,17 @@ def analyst_node(state: GraphState) -> GraphState:
         theme_name = factor_key
         logger.info(f"Running committee for: {theme_name}")
 
+        # Fetch history and calculate regime metrics
+        history = repo.get_factor_history(factor_key, state["target_date"])
+        regime_metrics = regime_calc.calculate(history)
+        regime_data[theme_name] = regime_metrics
+
         # Initialize PromptBuilder for this factor
         builder = PromptBuilder()
         builder.set_target_date(state["target_date"])\
                .set_factor_expertise(expertise)\
                .set_risk_profile(risk_profile)\
+               .set_regime_data(regime_metrics)\
                .set_daily_summary(state.get("daily_summary", "No daily news available."))\
                .set_user_query(state["question"])
         
@@ -73,4 +86,8 @@ def analyst_node(state: GraphState) -> GraphState:
         
         committee_views[theme_name] = view_result
     
-    return {"committee_views": committee_views}
+    return {
+        "committee_views": committee_views,
+        "regime_data": regime_data
+    }
+

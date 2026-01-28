@@ -23,6 +23,7 @@ class PromptBuilder:
         self.retrieved_context: str = ""
         self.user_query: str = ""
         self.actual_return: float = 0.0
+        self.regime_data: Dict[str, Any] = {}
 
     def set_target_date(self, target_date: datetime) -> 'PromptBuilder':
         self.target_date = target_date
@@ -50,6 +51,10 @@ class PromptBuilder:
 
     def set_actual_return(self, actual_return: float) -> 'PromptBuilder':
         self.actual_return = actual_return
+        return self
+
+    def set_regime_data(self, data: Dict[str, Any]) -> 'PromptBuilder':
+        self.regime_data = data
         return self
 
     def build_system_prompt(self) -> str:
@@ -107,10 +112,30 @@ You MUST respond in the requested structured format.
 
     def build_user_prompt(self, question: str, context: str) -> str:
         """
-        Assembles the user prompt with the query and retrieved context.
+        Assembles the user prompt with the query, retrieved context, and regime metrics.
         """
+        regime_section = ""
+        if self.regime_data:
+            rd = self.regime_data
+            weekly = ", ".join([f"{x:+.4f}" for x in rd.get('weekly_returns', [])])
+            
+            regime_section = f"""### Factor Regime & Technical Indicators
+- **Weekly Returns (Last 5 days)**: [{weekly}]
+- **Monthly (21d)**: Ann. Return: {rd.get('annualized_return_monthly', 0):+.4f}, Ann. Vol: {rd.get('annualized_vol_monthly', 0):.4f}
+- **Yearly (252d)**: Ann. Return: {rd.get('annualized_return_yearly', 0):+.4f}, Ann. Vol: {rd.get('annualized_vol_yearly', 0):.4f}
+- **Higher Moments (Monthly vs Yearly)**:
+    - Skewness: {rd.get('skewness_monthly', 0):+.4f} (M) / {rd.get('skewness_yearly', 0):+.4f} (Y)
+    - Kurtosis: {rd.get('kurtosis_monthly', 0):.4f} (M) / {rd.get('kurtosis_yearly', 0):.4f} (Y)
+- **Stability & Market Regime**:
+    - Vol of Vol (252d): {rd.get('vol_of_vol', 0):.4f}
+    - Hurst Exponent (Trendiness): {rd.get('hurst_exponent', 0):.4f} (H > 0.5: Trending, H < 0.5: Mean-Reverting)
+    - Kaufman's Efficiency Ratio: {rd.get('efficiency_ratio', 0):.4f} (ER -> 1: Trending, ER -> 0: Noise)
+"""
+
         prompt = f"""### Today's Market News Summary
 {self.daily_summary}
+
+{regime_section}
 
 ### Long-term Memory (Retrieved Context)
 {context}
