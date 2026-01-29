@@ -257,5 +257,5 @@ data/
 .specstory/
 *.mp4
 *.jpeg
-*.png
+# *.png  <-- Allowed for README plots
 *.avif
