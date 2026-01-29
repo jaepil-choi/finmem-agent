@@ -25,7 +25,8 @@ class BaseAgent:
         llm = ChatOpenAI(
             model=model_name,
             api_key=settings.OPENAI_API_KEY,
-            temperature=0.7 # Ensemble diversity
+            temperature=0.7, # Ensemble diversity
+            max_retries=5
         )
         self.model = llm.with_structured_output(CommitteeView)
 

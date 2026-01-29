@@ -17,10 +17,28 @@ from src.rag.strategies.finmem import FinMemRAG
 from src.config import settings
 from src.core.optimization.black_litterman import BlackLittermanOptimizer
 from src.graph.builder import create_rag_graph
+from src.core.utils.visualizer import get_all_importance_scores, plot_importance_histogram, plot_cumulative_returns
+from langchain_community.vectorstores import FAISS
+from langchain_openai import OpenAIEmbeddings
+from pathlib import Path
 
 # Configure logging to be less noisy for external libs
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
+
+def reset_all_importance():
+    """Resets all importance scores in FAISS to 40.0."""
+    print("\n[System] Resetting all document importance scores to 40.0...")
+    embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+    for tier in ["shallow", "intermediate"]:
+        tier_path = Path(settings.VECTOR_DB_ROOT) / tier
+        if (tier_path / "index.faiss").exists():
+            index = FAISS.load_local(str(tier_path), embeddings, allow_dangerous_deserialization=True)
+            for doc_id, doc in index.docstore._dict.items():
+                doc.metadata["importance"] = 40.0
+                doc.metadata["access_counter"] = 0
+            index.save_local(str(tier_path))
+            print(f"  - Reset {tier} index.")
 
 def run_detailed_training_loop(start_date: datetime, end_date: datetime, is_training: bool = True):
     """
@@ -66,8 +84,20 @@ def run_detailed_training_loop(start_date: datetime, end_date: datetime, is_trai
 
     cumulative_return = 0.0
     name_map = {v.get('name', k.capitalize()): k for k, v in settings.factor_expertise.items()}
+    
+    # Tracking for visualization
+    tracking_dates = []
+    tracking_returns = []
+    daily_returns_list = []
+    
+    # 3. Capture Initial Importance (Training only)
+    if is_training:
+        reset_all_importance()
+        print(f"\n[Visualizer] Capturing initial importance distribution...")
+        initial_scores = get_all_importance_scores()
+        plot_importance_histogram(initial_scores, "Memory Importance Distribution (Pre-Training)", "plots/importance_pre_training.png")
 
-    # 3. Main Loop
+    # 4. Main Loop
     for current_date in backtest_dates:
         date_str = current_date.strftime('%Y-%m-%d')
         print(f"\n\n{'#'*80}")
@@ -148,9 +178,16 @@ def run_detailed_training_loop(start_date: datetime, end_date: datetime, is_trai
                     print(f"  {factor:<15} | {weight:>10.2%} | {actual_ret:>+10.4f}")
             
             cumulative_return += daily_return
+            daily_returns_list.append(daily_return)
+            
             print(f"  {'-'*41}")
             print(f"  {'DAILY RETURN':<15} | {daily_return:>+10.4f}")
             print(f"  {'CUMULATIVE':<15} | {cumulative_return:>+10.4f}")
+            print(f"  {'PORT RETURNS':<15} | [{', '.join([f'{r:+.4f}' for r in daily_returns_list])}]")
+
+            # Tracking
+            tracking_dates.append(current_date)
+            tracking_returns.append(cumulative_return)
 
             # Note: The Reflection logs are printed directly from the nodes
 
@@ -160,10 +197,20 @@ def run_detailed_training_loop(start_date: datetime, end_date: datetime, is_trai
             print(traceback.format_exc())
 
     print(f"\n\n{'='*80}")
-    print(f"{'TRAINING LOOP COMPLETE':^80}")
+    print(f"{f'{mode_str} LOOP COMPLETE':^80}")
     print(f"{'='*80}")
     print(f"Final Cumulative Return: {cumulative_return:.4f}")
     print(f"{'='*80}\n")
+    
+    # 5. Final Visualizations
+    if is_training:
+        print(f"\n[Visualizer] Capturing post-training importance distribution...")
+        final_scores = get_all_importance_scores()
+        plot_importance_histogram(final_scores, "Memory Importance Distribution (Post-Training)", "plots/importance_post_training.png")
+    else:
+        # Plot Performance for Test Mode
+        print(f"\n[Visualizer] Generating performance plot...")
+        plot_cumulative_returns(tracking_dates, tracking_returns, "Strategy Cumulative Performance (Test Period)", "plots/test_performance.png")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Factor-FinMem Training Loop with Detailed Logs")

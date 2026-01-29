@@ -44,7 +44,12 @@ def reflection_node(state: Dict[str, Any]) -> Dict[str, Any]:
     
     prompt = builder.build_reflection_prompt(context_text)
     
-    llm = ChatOpenAI(model="gpt-4o", api_key=settings.OPENAI_API_KEY, temperature=0)
+    llm = ChatOpenAI(
+        model="gpt-4o", 
+        api_key=settings.OPENAI_API_KEY, 
+        temperature=0,
+        max_retries=5  # Robust handling for RateLimitError
+    )
     structured_llm = llm.with_structured_output(ReflectionView)
     
     response = structured_llm.invoke([
