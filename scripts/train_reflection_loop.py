@@ -2,58 +2,173 @@ import logging
 import sys
 import os
 import argparse
-from datetime import datetime
+import numpy as np
+from datetime import datetime, time
+from typing import List, Dict, Any
+
+# Add project root to path
+sys.path.append(os.getcwd())
+
 from src.core.evaluation.backtester import Backtester
 from src.db.jkp_repository import JKPRepository
+from src.db.repository import ReportRepository
+from src.rag.strategies.finmem import FinMemRAG
+from src.config import settings
+from src.core.optimization.black_litterman import BlackLittermanOptimizer
+from src.graph.builder import create_rag_graph
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# Configure logging to be less noisy for external libs
+logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
-def run_training_backtest(start_date: datetime, end_date: datetime, is_training: bool = True):
+def run_detailed_training_loop(start_date: datetime, end_date: datetime, is_training: bool = True):
     """
-    Runs a multi-day backtest in training or test mode.
+    Runs a detailed training loop with step-by-step logging similar to demo_detailed_factors.py.
     """
     mode_str = "TRAINING (Self-Evolution)" if is_training else "TEST"
-    logger.info(f"=== Starting {mode_str} Loop ===")
+    print(f"\n{'='*80}")
+    print(f"{f'STARTING {mode_str} LOOP':^80}")
+    print(f"{'='*80}")
+    print(f"Period: {start_date.date()} to {end_date.date()}")
+    print(f"{'='*80}\n")
+
+    # 1. Initialize Components
+    jkp_repo = JKPRepository()
+    report_repo = ReportRepository()
+    optimizer = BlackLittermanOptimizer()
+    rag_strategy = FinMemRAG()
+    app = create_rag_graph()
     
     # Define Macro Question
     question = "Predict the directional movement (Up/Neutral/Down) of the target factor for the next period based on the provided daily news and historical context."
+    target_factors = "all"
     
-    # Initialize Backtester
-    backtester = Backtester(start_date=start_date, end_date=end_date)
-    
-    # Run Backtest
-    # Using 'all' to cover all 13 factors as requested
-    target_factors = "all" 
-    
-    logger.info(f"Target Factors: {target_factors}")
-    logger.info(f"Question: {question}")
-    logger.info(f"Period: {start_date.date()} to {end_date.date()}")
-    
-    backtester.run(question=question, target_factor=target_factors, is_training=is_training)
-    
-    # Display Summary
-    summary = backtester.get_summary()
-    if not summary.empty:
-        print(f"\n=== Backtest {mode_str} Summary ===")
-        print(summary)
-        if 'cumulative_return' in summary.columns:
-            print(f"\nFinal Cumulative Return: {summary['cumulative_return'].iloc[-1]:.4f}")
+    # Mapping for factors
+    if target_factors == "all":
+        factor_keys = list(settings.factor_expertise.keys())
     else:
-        print("\nNo results generated.")
+        factor_keys = [f.strip() for f in target_factors.split(",")]
+
+    # 2. Get Valid Dates (Intersection of Returns and Reports)
+    available_return_dates = {d.date() for d in jkp_repo.get_available_dates()}
+    available_report_dates = {d.date() for d in report_repo.get_available_report_dates(collection="daily")}
+    valid_dates = sorted(available_return_dates.intersection(available_report_dates))
+    
+    backtest_dates = [
+        datetime.combine(d, time.min) for d in valid_dates 
+        if start_date.date() <= d <= end_date.date()
+    ]
+    
+    if not backtest_dates:
+        print(f"❌ No valid dates found in range {start_date.date()} to {end_date.date()}")
+        return
+
+    cumulative_return = 0.0
+    name_map = {v.get('name', k.capitalize()): k for k, v in settings.factor_expertise.items()}
+
+    # 3. Main Loop
+    for current_date in backtest_dates:
+        date_str = current_date.strftime('%Y-%m-%d')
+        print(f"\n\n{'#'*80}")
+        print(f"{f'DATE: {date_str}':^80}")
+        print(f"{'#'*80}")
+
+        # --- STEP 1: Fetch actual returns ---
+        raw_actual_returns = jkp_repo.get_factor_returns(current_date)
+        if not raw_actual_returns:
+            print(f"⚠️ Skipping {date_str}: Missing factor returns.")
+            continue
+            
+        actual_returns = {}
+        for raw_name, ret in raw_actual_returns.items():
+            internal_key = name_map.get(raw_name)
+            if internal_key:
+                actual_returns[internal_key] = ret
+            else:
+                actual_returns[raw_name.lower().replace(" ", "_")] = ret
+
+        # --- STEP 2: Fetch Today's Reports ---
+        print(f"\n[Step 1] Fetching Today's Reports...")
+        today_reports = report_repo.get_reports_by_date(current_date, collections=["daily"])
+        if not today_reports:
+            print(f"⚠️ Warning: No daily news for {date_str}.")
+        else:
+            print(f"✅ Found {len(today_reports)} daily reports.")
+
+        # --- STEP 3: Retrieve Memory (RAG) ---
+        print(f"\n[Step 2] Retrieving Long-term Memory (FinMemRAG)...")
+        # We simulate what the graph does to show scores here
+        context_docs = rag_strategy.retrieve(query=question, target_date=current_date, k=5)
+        for i, doc in enumerate(context_docs):
+            scores = doc.metadata.get("finmem_scores", {})
+            score_str = f"S:{scores.get('similarity', 0.0):.2f}, R:{scores.get('recency', 0.0):.2f}, I:{scores.get('importance', 0.0):.2f} | Total: {scores.get('composite', 0.0):.2f}"
+            print(f"  - Document {i}: {doc.metadata.get('filename', 'Unknown')} ({score_str})")
+        print(f"✅ Retrieved {len(context_docs)} relevant documents.")
+
+        # --- STEP 4: Invoke Graph ---
+        print(f"\n[Step 3] Executing Agentic Committees & Reflection...")
+        initial_state = {
+            "question": question,
+            "target_date": current_date,
+            "target_factor": target_factors,
+            "is_training": is_training,
+            "actual_returns": actual_returns,
+            "cumulative_return": cumulative_return,
+            "messages": []
+        }
+        
+        try:
+            # We use invoke to run the whole graph (including reflection if training)
+            state_output = app.invoke(initial_state)
+            
+            # --- STEP 5: Display Committee Views ---
+            committee_results = state_output.get("committee_views", {})
+            print(f"\n[Step 4] Committee Results & Votes:")
+            for factor_key, view in committee_results.items():
+                votes = view.get("individual_votes", [])
+                q = view.get("q_value", 0.0)
+                omega = view.get("omega_value", 0.0)
+                print(f"  - {factor_key.upper():<12} | Q: {q:+.2f} (Bias) | Ω: {omega:.2f} (Uncert) | Votes: {votes}")
+
+            # --- STEP 6: Optimization & Portfolio Return ---
+            print(f"\n[Step 5] Portfolio Optimization & Performance:")
+            optimized_weights = optimizer.get_optimized_weights(committee_results, factor_keys)
+            
+            daily_return = 0.0
+            print(f"  {'Factor':<15} | {'Weight':<10} | {'Return':<10}")
+            print(f"  {'-'*41}")
+            for factor, weight in optimized_weights.items():
+                if abs(weight) > 0.01:
+                    actual_ret = actual_returns.get(factor, 0.0)
+                    daily_return += weight * actual_ret
+                    print(f"  {factor:<15} | {weight:>10.2%} | {actual_ret:>+10.4f}")
+            
+            cumulative_return += daily_return
+            print(f"  {'-'*41}")
+            print(f"  {'DAILY RETURN':<15} | {daily_return:>+10.4f}")
+            print(f"  {'CUMULATIVE':<15} | {cumulative_return:>+10.4f}")
+
+            # Note: The Reflection logs are printed directly from the reflection_node in src/graph/nodes/reflection.py
+
+        except Exception as e:
+            print(f"❌ Error during training at {date_str}: {e}")
+            import traceback
+            print(traceback.format_exc())
+
+    print(f"\n\n{'='*80}")
+    print(f"{'TRAINING LOOP COMPLETE':^80}")
+    print(f"{'='*80}")
+    print(f"Final Cumulative Return: {cumulative_return:.4f}")
+    print(f"{'='*80}\n")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run Factor-FinMem Training or Test Loop")
+    parser = argparse.ArgumentParser(description="Run Factor-FinMem Training Loop with Detailed Logs")
     parser.add_argument("--mode", type=str, choices=["train", "test"], default="train", help="Execution mode")
     parser.add_argument("--start", type=str, help="Start date (YYYYMMDD)")
     parser.add_argument("--end", type=str, help="End date (YYYYMMDD)")
     
     args = parser.parse_args()
     
-    # Default Dates based on request
-    # Training: 20240225 to 20240403
-    # Test: 20240404 to 20240515
     if args.mode == "train":
         default_start = "20240225"
         default_end = "20240403"
@@ -69,9 +184,4 @@ if __name__ == "__main__":
     start_dt = datetime.strptime(start_str, "%Y%m%d")
     end_dt = datetime.strptime(end_str, "%Y%m%d")
     
-    try:
-        run_training_backtest(start_dt, end_dt, is_training=is_training)
-    except Exception as e:
-        logger.error(f"Failed to run backtest loop: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
+    run_detailed_training_loop(start_dt, end_dt, is_training=is_training)

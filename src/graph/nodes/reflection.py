@@ -57,20 +57,33 @@ def reflection_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     # 3. Calculate Feedback (F)
     feedback = 0.0
+    feedback_type = "NEUTRAL"
     if q_value > 0 and actual_return > 0:
         feedback = 1.0
+        feedback_type = "REWARD (Correct Bullish)"
     elif q_value < 0 and actual_return < 0:
         feedback = 1.0
+        feedback_type = "REWARD (Correct Bearish)"
     elif q_value > 0 and actual_return < 0:
         feedback = -1.0
+        feedback_type = "PENALTY (False Bullish)"
     elif q_value < 0 and actual_return > 0:
         feedback = -1.0
+        feedback_type = "PENALTY (False Bearish)"
     elif q_value == 0 and abs(actual_return) > 0.01:
         feedback = -0.5
+        feedback_type = "PENALTY (Missed Opportunity)"
     
+    emoji = "✅" if feedback > 0 else "❌" if feedback < 0 else "ℹ️"
+    print(f"\n    {emoji} Reflection Result for {factor_name}: {feedback_type}")
+    print(f"      - Prediction (Q): {q_value:+.4f}, Actual Return: {actual_return:+.4f}")
+    print(f"      - Feedback Score: {feedback:+.1f}")
+    print(f"      - Summary: {reflection_data.get('summary_reason')}")
+
     # 4. Handle Misleading Cases
     cited_ids = reflection_data.get("cited_doc_ids", [])
     if not cited_ids and feedback < 0:
+        print(f"      - No documents cited for penalty, checking for misleading info...")
         misleading_prompt = builder.build_misleading_reflection_prompt(context_text)
         response = structured_llm.invoke([
             ("system", "You are a senior financial analyst performing a post-investment review."),
@@ -78,10 +91,14 @@ def reflection_node(state: Dict[str, Any]) -> Dict[str, Any]:
         ])
         reflection_data = response.model_dump()
         cited_ids = reflection_data.get("cited_doc_ids", [])
+        if cited_ids:
+            print(f"      - Found {len(cited_ids)} misleading documents.")
 
     # 5. Update Memory (FAISS)
     if cited_ids and feedback != 0:
         _update_faiss_importance(cited_ids, doc_map, feedback)
+    else:
+        print(f"      - No memory updates required.")
 
     return {"reflections": {factor_name: reflection_data}}
 
@@ -92,6 +109,7 @@ def _update_faiss_importance(cited_ids: List[str], doc_map: Dict[str, Any], feed
     strategy = FinMemRAG()
     indices_updated = set()
 
+    print(f"      [Memory Update] Updating importance for {len(cited_ids)} documents...")
     for doc_id in cited_ids:
         doc = doc_map.get(doc_id)
         if not doc:
@@ -120,6 +138,9 @@ def _update_faiss_importance(cited_ids: List[str], doc_map: Dict[str, Any], feed
                 
                 stored_doc.metadata["access_counter"] = new_ac
                 stored_doc.metadata["importance"] = float(new_importance)
+                
+                change_emoji = "📈" if feedback > 0 else "📉"
+                print(f"        {change_emoji} Doc {doc_id} ({stored_doc.metadata.get('filename', 'Unknown')}): Importance {importance:.1f} -> {new_importance:.1f} (AC: {ac} -> {new_ac})")
                 
                 logger.info(f"Updated doc {doc_id} in tier {tier}: AC {ac}->{new_ac}, Importance {importance}->{new_importance:.2f}")
                 target_found = True
