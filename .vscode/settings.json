@@ -10,5 +10,6 @@
           "autoShowOutputPanel": "error"
         }
       ]
-    }
+    },
+    "python.languageServer": "None"
   }
