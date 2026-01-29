@@ -3,6 +3,7 @@ import sys
 import os
 import argparse
 import numpy as np
+from uuid import uuid4
 from datetime import datetime, time
 from typing import List, Dict, Any
 
@@ -60,7 +61,7 @@ def run_detailed_training_loop(start_date: datetime, end_date: datetime, is_trai
     ]
     
     if not backtest_dates:
-        print(f"❌ No valid dates found in range {start_date.date()} to {end_date.date()}")
+        print(f"(!) No valid dates found in range {start_date.date()} to {end_date.date()}")
         return
 
     cumulative_return = 0.0
@@ -76,7 +77,7 @@ def run_detailed_training_loop(start_date: datetime, end_date: datetime, is_trai
         # --- STEP 1: Fetch actual returns ---
         raw_actual_returns = jkp_repo.get_factor_returns(current_date)
         if not raw_actual_returns:
-            print(f"⚠️ Skipping {date_str}: Missing factor returns.")
+            print(f"(!) Skipping {date_str}: Missing factor returns.")
             continue
             
         actual_returns = {}
@@ -91,9 +92,9 @@ def run_detailed_training_loop(start_date: datetime, end_date: datetime, is_trai
         print(f"\n[Step 1] Fetching Today's Reports...")
         today_reports = report_repo.get_reports_by_date(current_date, collections=["daily"])
         if not today_reports:
-            print(f"⚠️ Warning: No daily news for {date_str}.")
+            print(f"(!) Warning: No daily news for {date_str}.")
         else:
-            print(f"✅ Found {len(today_reports)} daily reports.")
+            print(f"(v) Found {len(today_reports)} daily reports.")
 
         # --- STEP 3: Retrieve Memory (RAG) ---
         print(f"\n[Step 2] Retrieving Long-term Memory (FinMemRAG)...")
@@ -103,10 +104,13 @@ def run_detailed_training_loop(start_date: datetime, end_date: datetime, is_trai
             scores = doc.metadata.get("finmem_scores", {})
             score_str = f"S:{scores.get('similarity', 0.0):.2f}, R:{scores.get('recency', 0.0):.2f}, I:{scores.get('importance', 0.0):.2f} | Total: {scores.get('composite', 0.0):.2f}"
             print(f"  - Document {i}: {doc.metadata.get('filename', 'Unknown')} ({score_str})")
-        print(f"✅ Retrieved {len(context_docs)} relevant documents.")
+        print(f"(v) Retrieved {len(context_docs)} relevant documents.")
 
         # --- STEP 4: Invoke Graph ---
         print(f"\n[Step 3] Executing Agentic Committees & Reflection...")
+        thread_id = str(uuid4())
+        config = {"configurable": {"thread_id": thread_id}}
+        
         initial_state = {
             "question": question,
             "target_date": current_date,
@@ -119,7 +123,7 @@ def run_detailed_training_loop(start_date: datetime, end_date: datetime, is_trai
         
         try:
             # We use invoke to run the whole graph (including reflection if training)
-            state_output = app.invoke(initial_state)
+            state_output = app.invoke(initial_state, config=config)
             
             # --- STEP 5: Display Committee Views ---
             committee_results = state_output.get("committee_views", {})
@@ -148,10 +152,10 @@ def run_detailed_training_loop(start_date: datetime, end_date: datetime, is_trai
             print(f"  {'DAILY RETURN':<15} | {daily_return:>+10.4f}")
             print(f"  {'CUMULATIVE':<15} | {cumulative_return:>+10.4f}")
 
-            # Note: The Reflection logs are printed directly from the reflection_node in src/graph/nodes/reflection.py
+            # Note: The Reflection logs are printed directly from the nodes
 
         except Exception as e:
-            print(f"❌ Error during training at {date_str}: {e}")
+            print(f"(!) Error during training at {date_str}: {e}")
             import traceback
             print(traceback.format_exc())
 

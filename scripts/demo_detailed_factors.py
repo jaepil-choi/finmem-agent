@@ -23,6 +23,7 @@ def run_detailed_demo(target_date_str: str, factor_keys: List[str]):
     """
     Runs a detailed demo for multiple factors, showing prompts and individual agent votes.
     """
+    print("DEBUG: Starting run_detailed_demo")
     target_date = datetime.fromisoformat(target_date_str)
     
     print(f"\n{'='*80}")
@@ -45,7 +46,11 @@ def run_detailed_demo(target_date_str: str, factor_keys: List[str]):
         print(f"⚠️ Warning: No daily reports found for {target_date_str}. Demo will proceed with empty summary.")
         daily_summary = "No daily news available for this date."
     else:
-        daily_summary = "\n\n".join([f"--- {r['filename']} ---\n{r['text'][:1000]}..." for r in today_reports])
+        summaries = []
+        for r in today_reports:
+            content = r.get("text") or r.get("content") or "No content available."
+            summaries.append(f"--- {r.get('filename', 'Unknown')} ---\n{content[:1000]}...")
+        daily_summary = "\n\n".join(summaries)
         print(f"✅ Found {len(today_reports)} daily reports.")
 
     # 3. Process Each Factor
@@ -69,7 +74,10 @@ def run_detailed_demo(target_date_str: str, factor_keys: List[str]):
         context_docs = rag_strategy.retrieve(query=query, target_date=target_date, k=3)
         context_text = ""
         for i, doc in enumerate(context_docs):
-            context_text += f"[doc_{i}] (Source: {doc.metadata.get('filename', 'Unknown')}):\n{doc.page_content[:500]}...\n\n"
+            scores = doc.metadata.get("finmem_scores", {})
+            score_str = f"Score: {scores.get('composite', 0.0):.4f} [Sim: {scores.get('similarity', 0.0):.4f}, Rec: {scores.get('recency', 0.0):.4f}, Imp: {scores.get('importance', 0.0):.4f}]"
+            context_text += f"[doc_{i}] (Source: {doc.metadata.get('filename', 'Unknown')}) | {score_str}:\n{doc.page_content[:500]}...\n\n"
+            print(f"  - Document {i}: {doc.metadata.get('filename', 'Unknown')} ({score_str})")
         print(f"✅ Retrieved {len(context_docs)} relevant documents.")
 
         # C. Build Final Prompt

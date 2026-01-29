@@ -12,6 +12,10 @@ def add_reflections(left: Dict[str, Any], right: Dict[str, Any]) -> Dict[str, An
         return left
     return {**left, **right}
 
+def add_memory_updates(left: List[Dict[str, Any]], right: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Reducer to collect memory updates from parallel nodes."""
+    return (left or []) + (right or [])
+
 class GraphState(TypedDict):
     """
     Represents the state of our RAG graph.
@@ -53,3 +57,6 @@ class GraphState(TypedDict):
     actual_returns: Dict[str, float]
     # Detailed reflection reasoning for each committee
     reflections: Annotated[Dict[str, Any], add_reflections]
+    
+    # Memory updates to be applied at the end of the turn
+    memory_updates: Annotated[List[Dict[str, Any]], add_memory_updates]

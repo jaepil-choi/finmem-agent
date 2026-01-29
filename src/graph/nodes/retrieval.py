@@ -19,7 +19,12 @@ def retrieval_node(state: GraphState) -> GraphState:
     daily_summary = "No daily news available for this date."
     if today_reports:
         # Combine headlines or summaries if multiple
-        daily_summary = "\n\n".join([f"--- {r['filename']} ---\n{r['text'][:1000]}..." for r in today_reports])
+        # Use .get() to avoid KeyError if 'text' is missing, fallback to 'content' or empty string
+        summaries = []
+        for r in today_reports:
+            content = r.get("text") or r.get("content") or "No content available."
+            summaries.append(f"--- {r.get('filename', 'Unknown')} ---\n{content[:1000]}...")
+        daily_summary = "\n\n".join(summaries)
     
     # 2. Perform retrieval with FinMem composite scoring
     strategy = FinMemRAG()
